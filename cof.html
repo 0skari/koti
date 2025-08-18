@@ -1,1 +1,344 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Negative Harmony Visualizer</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+  svg { border: 1px solid #ccc; margin-top: 20px; user-select:none; }
+  circle.note {
+    cursor: pointer;
+    stroke: black;
+    stroke-width: 1;
+    transition: fill 0.3s;
+  }
+  line.axisSegment {
+    stroke: gray;
+    stroke-width: 5;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.3s, stroke 0.3s;
+  }
+  line.axisSegment:hover {
+    opacity: 1;
+    stroke: darkorange;
+  }
+  line.axisLine {
+    stroke: black;
+    stroke-width: 3;
+  }
+  text {
+    user-select: none;
+    font-weight: bold;
+    font-size: 22px;
+    pointer-events: none;
+  }
+  button {
+    margin: 10px 8px 0 8px;
+    font-size: 16px;
+    padding: 8px 15px;
+  }
+  #info {
+    margin-bottom: 10px;
+    font-size: 18px;
+  }
+</style>
+</head>
+<body>
 
+<h1>Negative Harmony Visualizer</h1>
+<div id="info">1. Please choose the axis the chord.</div>
+
+<svg id="circle" width="64vh" height="90vh%" viewBox="-250 -250 500 500">
+  <circle cx="0" cy="0" r="195" fill="#f5f5f5" stroke="black" stroke-width="2"/>
+</svg>
+
+<div>
+  <button id="startMarkingBtn" disabled>2. Lock the position of the axis</button>
+  <button id="mirrorBtn" disabled>3. Continue</button>
+  <button id="resetBtn">Reset</button>
+</div>
+
+<script>
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById('circle');
+  const radius = 200;
+  const notes = [
+    'C(Am)', 'G(Em)', 'D(Hm)', 'A(F♯m)', 'E(C♯m)',
+    'H(C♭&G♯m)', 'F♯(G♭&E♭m)', 'D♭(C♯&Bm)', 'A♭(Fm)',
+    'E♭(Cm)', 'B(Gm)', 'F(Dm)'
+  ];
+
+  const points = [];
+  const noteElements = [];
+  const axisSegments = [];
+  const noteAxisSegments = [];
+
+  let mode = 'chooseAxis';
+  let axisIndices = null;
+  let axis = null;
+  const redNotes = new Set();
+
+  const infoText = document.getElementById('info');
+  const startMarkingBtn = document.getElementById('startMarkingBtn');
+  const mirrorBtn = document.getElementById('mirrorBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // Draw notes
+  for (let i = 0; i < notes.length; i++) {
+    const angle = (i / notes.length) * 2 * Math.PI - Math.PI / 2;
+    const x = radius * Math.cos(angle);
+    const y = radius * Math.sin(angle);
+    points.push({ x, y });
+
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", x);
+    circle.setAttribute("cy", y);
+    circle.setAttribute("r", 40);
+    circle.classList.add('note');
+    circle.setAttribute('fill', 'white');
+    circle.setAttribute('data-index', i);
+    svg.appendChild(circle);
+
+    // Teksti, jossa sulut erivärisinä/pienempinä
+    const text = document.createElementNS(SVG_NS, "text");
+    text.setAttribute("x", x);
+    text.setAttribute("y", y + 6);
+    text.setAttribute("text-anchor", "middle");
+
+    const match = notes[i].match(/^([^()]+)(\(.*\))?$/);
+    if (match) {
+      const normalPart = match[1];
+      const bracketPart = match[2];
+
+      const normalTspan = document.createElementNS(SVG_NS, "tspan");
+      normalTspan.textContent = normalPart;
+      text.appendChild(normalTspan);
+
+      if (bracketPart) {
+        const bracketTspan = document.createElementNS(SVG_NS, "tspan");
+        bracketTspan.textContent = bracketPart;
+        bracketTspan.setAttribute("fill", "green");
+        bracketTspan.setAttribute("font-size", "10"); // pienempi fontti
+        text.appendChild(bracketTspan);
+      }
+    } else {
+      text.textContent = notes[i];
+    }
+
+    svg.appendChild(text);
+    noteElements.push(circle);
+  }
+
+  // Axis between notes
+  for (let i = 0; i < notes.length; i++) {
+    const p1 = points[i];
+    const p2 = points[(i + 1) % notes.length];
+
+    const line = document.createElementNS(SVG_NS, "line");
+    line.setAttribute("x1", p1.x);
+    line.setAttribute("y1", p1.y);
+    line.setAttribute("x2", p2.x);
+    line.setAttribute("y2", p2.y);
+    line.classList.add('axisSegment');
+    line.setAttribute('data-type', 'between');
+    line.setAttribute('data-start', i);
+    line.setAttribute('data-end', (i + 1) % notes.length);
+    svg.appendChild(line);
+    axisSegments.push(line);
+
+    line.addEventListener('click', () => {
+      if (mode !== 'chooseAxis') return;
+      axisIndices = [i, (i + 1) % notes.length];
+      selectAxis(axisIndices, 'between');
+    });
+  }
+
+  // Axis through note
+  for (let i = 0; i < notes.length; i++) {
+    const p1 = points[i];
+    const p2 = points[(i + 6) % notes.length]; // opposite note
+
+    const line = document.createElementNS(SVG_NS, "line");
+    line.setAttribute("x1", p1.x);
+    line.setAttribute("y1", p1.y);
+    line.setAttribute("x2", p2.x);
+    line.setAttribute("y2", p2.y);
+    line.classList.add('axisSegment');
+    line.setAttribute('data-type', 'through');
+    line.setAttribute('data-note', i);
+    svg.appendChild(line);
+    noteAxisSegments.push(line);
+
+    line.addEventListener('click', () => {
+      if (mode !== 'chooseAxis') return;
+      axisIndices = [i, (i + 6) % notes.length];
+      selectAxis(axisIndices, 'through');
+    });
+  }
+
+  function removeAxisLine() {
+    const oldLine = document.getElementById('axisLine');
+    if (oldLine) oldLine.remove();
+  }
+
+  function selectAxis(indices, type) {
+    removeAxisLine();
+
+    if (type === 'between') {
+      const a = points[indices[0]];
+      const b = points[indices[1]];
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      axis = {
+        start: { x: midX,  y: midY },
+        end:   { x: -midX, y: -midY }
+      };
+    } else {
+      const a = points[indices[0]];
+      const b = points[indices[1]];
+      axis = {
+        start: { x: a.x, y: a.y },
+        end:   { x: b.x, y: b.y }
+      };
+    }
+
+    const axisLine = document.createElementNS(SVG_NS, "line");
+    axisLine.setAttribute("x1", axis.start.x);
+    axisLine.setAttribute("y1", axis.start.y);
+    axisLine.setAttribute("x2", axis.end.x);
+    axisLine.setAttribute("y2", axis.end.y);
+    axisLine.setAttribute("class", "axisLine");
+    axisLine.setAttribute("id", "axisLine");
+    svg.appendChild(axisLine);
+
+    [...axisSegments, ...noteAxisSegments].forEach(line => {
+      line.style.opacity = 0.4;
+      line.style.stroke = 'gray';
+      line.style.pointerEvents = 'none';
+    });
+
+    infoText.textContent = '2. Lock the position of the axis and select the notes for your chord.';
+    startMarkingBtn.disabled = false;
+  }
+
+  startMarkingBtn.addEventListener('click', () => {
+    if (mode !== 'chooseAxis') {
+      infoText.textContent = 'You are already selecting chord notes.';
+      return;
+    }
+    if (!axis) {
+      infoText.textContent = 'Please choose the axis first.';
+      return;
+    }
+    mode = 'markRed';
+    infoText.textContent = 'Select the notes of your chord by clicking on them.';
+    startMarkingBtn.disabled = true;
+    mirrorBtn.disabled = false;
+  });
+
+  mirrorBtn.addEventListener('click', () => {
+    if (mode !== 'markRed') {
+      infoText.textContent = 'Please select chord notes first.';
+      return;
+    }
+    if (redNotes.size === 0) {
+      infoText.textContent = 'Please select at least one note before continuing.';
+      return;
+    }
+    mirrorRedNotes();
+    mode = 'mirrored';
+    infoText.textContent = 'The chord has been mirrored about the selected axis.';
+    mirrorBtn.disabled = true;
+  });
+
+  resetBtn.addEventListener('click', () => {
+    mode = 'chooseAxis';
+    axisIndices = null;
+    axis = null;
+    redNotes.clear();
+    removeAxisLine();
+    [...axisSegments, ...noteAxisSegments].forEach(line => {
+      line.style.opacity = 0.4;
+      line.style.stroke = 'gray';
+      line.style.pointerEvents = 'auto';
+    });
+    noteElements.forEach(c => c.setAttribute('fill', 'white'));
+    infoText.textContent = '1. Select the position of the axis with respect to which the chord will be mirrored.';
+    startMarkingBtn.disabled = true;
+    mirrorBtn.disabled = true;
+  });
+
+  noteElements.forEach(circle => {
+    circle.addEventListener('click', () => {
+      if (mode !== 'markRed') return;
+      const idx = parseInt(circle.getAttribute('data-index'));
+      if (redNotes.has(idx)) {
+        redNotes.delete(idx);
+        circle.setAttribute('fill', 'white');
+      } else {
+        redNotes.add(idx);
+        circle.setAttribute('fill', 'pink');
+      }
+    });
+  });
+
+  function mirrorRedNotes() {
+    if (!axis) return;
+
+    const axisStart = axis.start;
+    const axisEnd = axis.end;
+
+    const dx = axisEnd.x - axisStart.x;
+    const dy = axisEnd.y - axisStart.y;
+    const len = Math.hypot(dx, dy);
+    const ux = dx / len;
+    const uy = dy / len;
+
+    function mirrorPoint(p) {
+      const apx = p.x - axisStart.x;
+      const apy = p.y - axisStart.y;
+      const dot = apx * ux + apy * uy;
+      const projx = dot * ux;
+      const projy = dot * uy;
+      return {
+        x: p.x - 2 * (apx - projx),
+        y: p.y - 2 * (apy - projy)
+      };
+    }
+
+    const threshold = 25;
+    const mirroredIndices = new Set();
+
+    redNotes.forEach(idx => {
+      const p = points[idx];
+      const mp = mirrorPoint(p);
+
+      let nearestIdx = null;
+      let nearestDist = Infinity;
+      points.forEach((pt, i) => {
+        const d = Math.hypot(pt.x - mp.x, pt.y - mp.y);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearestIdx = i;
+        }
+      });
+
+      if (nearestDist < threshold) {
+        mirroredIndices.add(nearestIdx);
+      }
+    });
+
+    mirroredIndices.forEach(idx => {
+      if (redNotes.has(idx)) {
+        noteElements[idx].setAttribute('fill', 'violet');
+      } else {
+        noteElements[idx].setAttribute('fill', 'lightblue');
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
