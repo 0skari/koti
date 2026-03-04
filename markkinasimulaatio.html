@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<title>Markkinasimulaatio</title>
+
+<style>
+
+body{
+    margin:0;
+    background:#111;
+    color:white;
+    font-family:Arial;
+    overflow:hidden;
+}
+
+.wrapper{
+    display:flex;
+    height:100vh;
+}
+
+.main{
+    flex:1;
+    padding:12px;
+    overflow:auto;
+}
+
+.canvasBox{
+    width:100%;
+    height:32vh;
+    margin-bottom:12px;
+}
+
+canvas{
+    width:100%;
+    height:100%;
+    background:#1a1a1a;
+    border:1px solid #444;
+}
+
+.sidebar{
+    width:300px;
+    background:#181818;
+    border-left:1px solid #333;
+    padding:15px;
+    overflow:auto;
+}
+
+.control{ margin-bottom:16px; }
+
+label{ font-size:14px; }
+
+.numberBox{
+    width:70px;
+    margin-left:8px;
+    background:#111;
+    border:1px solid #444;
+    color:#00ffaa;
+}
+
+.desc{
+    font-size:12px;
+    font-style:italic;
+    color:#aaa;
+    margin-top:4px;
+    line-height:1.3em;
+}
+
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+<div class="main">
+
+<h3>Logaritminormaalijakaumaan perustuva markkinasimulaatio</h3>
+
+<div class="canvasBox"><canvas id="chart"></canvas></div>
+<div class="canvasBox"><canvas id="curves"></canvas></div>
+<div class="canvasBox"><canvas id="distribution"></canvas></div>
+
+</div>
+
+<div class="sidebar">
+<h3>Säätimet</h3>
+<div id="controls"></div>
+</div>
+
+</div>
+
+<script>
+
+/* ===================== CANVAS ===================== */
+
+function fitCanvas(canvas){
+ const rect=canvas.getBoundingClientRect();
+ canvas.width=rect.width;
+ canvas.height=rect.height;
+}
+
+/* ===================== OLETUSARVOT ===================== */
+
+const params={
+ "Ostajat (kpl)":67,
+ "Myyjät (kpl)":67,
+ "Normaalijakauman keskihajonta (σ)":5.5,
+ "Kynttilän laskemisten välinen aikaintervalli (ms)":400,
+ "Simuloidut kaupat / kynttilä (kpl)":3,
+ "Ulkoisen tekijän voimakkuus (markkinan ylireagointimuuttuja)":2.4,
+ "Kysynnän ja tarjonnan epätasapainon vaikutuskerroin":0.04
+};
+
+let lastClose=1000;
+let dynamicMean=100;
+
+/* ===================== LIUKUSÄÄTIMET JNE. ===================== */
+
+const explanations={
+"Ostajat (kpl)":
+"Kasvattaa ostaja-agenttien määrää. Lisää todennäköisyyttä, että ostotarjoukset ylittävät myyntihinnat ja kauppoja syntyy enemmän.",
+"Myyjät (kpl)":
+"Kasvattaa myyjä-agenttien määrää. Lisää tarjontaa ja kasvattaa hintojen laskupainetta agenttien matching-vaiheessa.",
+"Normaalijakauman keskihajonta (σ)":
+"Määrittää logaritminormaalijakauman hajonnan, josta agenttien hintavalmius arvotaan. Suurempi σ lisää (etenkin kynttilän sisäistä) volatiliteettia eksponentiaalisesti.",
+"Kynttilän laskemisten välinen aikaintervalli (ms)":
+"Määrittää kuinka usein simulaation askel suoritetaan. Vaikuttaa vain simulaatiokierrosten väliseen odotusaikaan, ei markkinadynamiikkaan.",
+"Simuloidut kaupat / kynttilä (kpl)":
+"Kuinka monta matching-kierrosta tehdään (agenttien ''toimeksiantojen'' pohjalta tehdystä tarjouskirjasta) yhdessä kynttilässä. Suurempi arvo vakauttaa kynttilän sisäistä hintaa keskiarvoistumisen vuoksi.",
+"Ulkoisen tekijän voimakkuus (markkinan ylireagointimuuttuja)":
+"Satunnaisen (multiplikatiivisen) ulkoisen shokin keskihajonta. Vaikuttaa dynamicMean-arvoon eksponenttifunktion kautta. Pyrkii simuloimaan esimerkiksi maailmanpoliittisia mullistuksia sekä satunnaisia osareita.",
+"Kysynnän ja tarjonnan epätasapainon vaikutuskerroin":
+"Skaalaa ostajien ja myyjien epätasapainosta syntyvän ''ajautumisen'', joka siirtää markkinan keskihintaa jokaisessa askeleessa."
+};
+
+const sliders=[
+["Ostajat (kpl)",2,2000,1],
+["Myyjät (kpl)",2,2000,1],
+["Normaalijakauman keskihajonta (σ)",0.001,50,0.001],
+["Kynttilän laskemisten välinen aikaintervalli (ms)",0,2000,1],
+["Simuloidut kaupat / kynttilä (kpl)",1,16,1],
+["Ulkoisen tekijän voimakkuus (markkinan ylireagointimuuttuja)",0,5,0.1],
+["Kysynnän ja tarjonnan epätasapainon vaikutuskerroin",0,0.2,0.005]
+];
+
+const controls=document.getElementById("controls");
+
+sliders.forEach(([n,min,max,step])=>{
+
+ const wrap=document.createElement("div");
+ wrap.className="control";
+
+ const label=document.createElement("label");
+ label.innerText=n;
+
+ const input=document.createElement("input");
+ input.type="range";
+ input.min=min;
+ input.max=max;
+ input.step=step;
+ input.value=params[n];
+
+ const number=document.createElement("input");
+ number.type="number";
+ number.className="numberBox";
+ number.min=min;
+ number.max=max;
+ number.step=step;
+ number.value=params[n];
+
+ function setValue(val){
+   let v=parseFloat(val);
+   if(isNaN(v)) return;
+   if(v<min) v=min;
+   if(v>max) v=max;
+
+   params[n]=v;
+   input.value=v;
+   number.value=v;
+ }
+
+ input.oninput=()=>setValue(input.value);
+ number.onchange=()=>setValue(number.value);
+
+ const desc=document.createElement("div");
+ desc.className="desc";
+ desc.innerText=explanations[n];
+
+ wrap.appendChild(label);
+ wrap.appendChild(document.createElement("br"));
+ wrap.appendChild(input);
+ wrap.appendChild(number);
+ wrap.appendChild(desc);
+
+ controls.appendChild(wrap);
+});
+
+/* ===== Näytä alusta päällä defaulttina, muista että pelkkä showFromStart on true ei auta viä grafiikkojen kaa, ks. kommentti alempana ===== */
+
+let showFromStart = true;
+
+const toggleWrap = document.createElement("div");
+toggleWrap.className = "control";
+
+const toggle = document.createElement("input");
+toggle.type = "checkbox";
+toggle.checked = showFromStart; // <-- tämä pitää olla
+
+toggle.onchange = () => {
+  showFromStart = toggle.checked;
+  drawCandles();
+};
+
+const lbl = document.createElement("label");
+lbl.appendChild(toggle);
+lbl.appendChild(document.createTextNode(" Näytä alusta"));
+
+toggleWrap.appendChild(lbl);
+controls.appendChild(toggleWrap);
+
+/* ===================== SATUNNAISUUSFUNKTIO :D ===================== */
+
+function normalRandom(mean,std){
+ let u=0,v=0;
+ while(u===0)u=Math.random();
+ while(v===0)v=Math.random();
+ return mean+
+  Math.sqrt(-2*Math.log(u))*
+  Math.cos(2*Math.PI*v)*std;
+}
+
+/* ===================== AGENTIT ===================== */
+
+let lastBuyers=[], lastSellers=[];
+
+function generateAgents(){
+
+ const buyers=[], sellers=[];
+ const sigmaPercent =
+   params["Normaalijakauman keskihajonta (σ)"]/100;
+
+ for(let i=0;i<params["Ostajat (kpl)"];i++){
+  const r=normalRandom(0,sigmaPercent);
+  buyers.push(Math.max(0,dynamicMean*Math.exp(r)));
+ }
+
+ for(let i=0;i<params["Myyjät (kpl)"];i++){
+  const r=normalRandom(0,sigmaPercent);
+  sellers.push(Math.max(0,dynamicMean*Math.exp(r)));
+ }
+
+ buyers.sort((a,b)=>b-a);
+ sellers.sort((a,b)=>a-b);
+
+ lastBuyers=buyers;
+ lastSellers=sellers;
+
+ return {buyers,sellers};
+}
+
+/* ===================== TÖRMÄYTETÄÄN TOIMEKSIANNOT TARJOUSKIRJASTA ===================== */
+
+function matchTrades(){
+
+ const {buyers,sellers}=generateAgents();
+
+ let trades=[];
+ let i=0,j=0;
+
+ while(i<buyers.length && j<sellers.length){
+  if(buyers[i]>=sellers[j]){
+   trades.push((buyers[i]+sellers[j])/2);
+   i++; j++;
+  } else break;
+ }
+
+ return {trades,imbalance:i-j};
+}
+
+/* ===================== AKSELIEN MÄÄRITTELY JA SKAALAUS TÄS ===================== */
+
+function drawAxis(ctx,w,h,min,max,label){
+
+ ctx.strokeStyle="#444";
+ ctx.fillStyle="#aaa";
+ ctx.font="11px Arial";
+
+ const steps=6;
+
+ for(let i=0;i<=steps;i++){
+  const v=min+(max-min)*i/steps;
+  const y=h-(i/steps)*h;
+
+  ctx.beginPath();
+  ctx.moveTo(40,y);
+  ctx.lineTo(w,y);
+  ctx.stroke();
+
+  ctx.fillText(v.toFixed(2)+" €",5,y+3);
+ }
+
+ ctx.fillText(label,5,12);
+}
+
+/* ===================== KYNTTILÄT, huom musta reunus ei skaalaudu ===================== */
+
+const chart=document.getElementById("chart");
+const ctx=chart.getContext("2d");
+
+let allCandles=[];
+
+function getVisibleCandles(){
+ return showFromStart
+   ? allCandles
+   : allCandles.slice(-180);
+}
+
+function drawCandles(){
+
+ fitCanvas(chart);
+ ctx.clearRect(0,0,chart.width,chart.height);
+
+ const candles=getVisibleCandles();
+ if(!candles.length) return;
+
+ const scaleSource = showFromStart ? allCandles : candles;
+
+ const all=scaleSource.flatMap(c=>[c.high,c.low]);
+ const max=Math.max(...all);
+ const min=Math.min(...all);
+
+ const scale=p=>
+  chart.height-(p-min)/(max-min)*chart.height;
+
+ drawAxis(ctx,chart.width,chart.height,min,max,"Hinta (€)");
+
+ const leftPad=50;
+ const usableWidth=chart.width-leftPad-10;
+
+ const candleWidth = showFromStart
+   ? usableWidth / candles.length
+   : 6;
+
+ candles.forEach((c,i)=>{
+
+  const x = showFromStart
+    ? leftPad + i*candleWidth
+    : leftPad + i*6;
+
+  const prev=i?candles[i-1].close:c.close;
+  const color=c.close>=prev?"#00ff88":"#ff4444";
+
+  /* wick outline */
+  ctx.strokeStyle="#000";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(x+candleWidth/2,scale(c.high));
+  ctx.lineTo(x+candleWidth/2,scale(c.low));
+  ctx.stroke();
+
+  /* wick color */
+  ctx.strokeStyle=color;
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(x+candleWidth/2,scale(c.high));
+  ctx.lineTo(x+candleWidth/2,scale(c.low));
+  ctx.stroke();
+
+  const y=Math.min(scale(c.open),scale(c.close));
+  const h=Math.abs(scale(c.open)-scale(c.close))||1;
+
+  /* body outline */
+  ctx.strokeStyle="#000";
+  ctx.lineWidth=2;
+  ctx.strokeRect(x,y,Math.max(1,candleWidth*0.8),h);
+
+  /* body fill */
+  ctx.fillStyle=color;
+  ctx.fillRect(x,y,Math.max(1,candleWidth*0.8),h);
+ });
+}
+
+function addCandle(prices){
+
+ if(!prices.length) return;
+
+ const close=prices.at(-1);
+
+ allCandles.push({
+  open:prices[0],
+  close,
+  high:Math.max(...prices),
+  low:Math.min(...prices)
+ });
+
+ lastClose=close;
+}
+
+/* ===================== Iso S ja iso D käyrät ===================== */
+
+const curves=document.getElementById("curves");
+const cctx=curves.getContext("2d");
+
+function drawCurves(){
+
+ fitCanvas(curves);
+ cctx.clearRect(0,0,curves.width,curves.height);
+ if(!lastBuyers.length) return;
+
+ const w=curves.width;
+ const h=curves.height;
+
+ const prices=[...lastBuyers,...lastSellers];
+ const max=Math.max(...prices);
+ const min=Math.min(...prices);
+
+ const scaleY=p=>h-(p-min)/(max-min)*h;
+
+ drawAxis(cctx,w,h,min,max,"Hinta (€)");
+
+ cctx.strokeStyle="#00aaff";
+ cctx.beginPath();
+ lastBuyers.forEach((p,i)=>{
+  const x=50+(i/lastBuyers.length)*(w-50);
+  const y=scaleY(p);
+  i?cctx.lineTo(x,y):cctx.moveTo(x,y);
+ });
+ cctx.stroke();
+
+ cctx.strokeStyle="#ffaa00";
+ cctx.beginPath();
+ lastSellers.forEach((p,i)=>{
+  const x=50+(i/lastSellers.length)*(w-50);
+  const y=scaleY(p);
+  i?cctx.lineTo(x,y):cctx.moveTo(x,y);
+ });
+ cctx.stroke();
+
+ cctx.fillStyle="#aaa";
+ cctx.fillText("Määrä (agenttia)",w/2-40,h-5);
+}
+
+/* ===================== HAJONTA ===================== */
+
+const dist=document.getElementById("distribution");
+const dctx=dist.getContext("2d");
+
+function drawDistribution(){
+
+ fitCanvas(dist);
+ dctx.clearRect(0,0,dist.width,dist.height);
+
+ const all=[...lastBuyers,...lastSellers];
+ if(!all.length) return;
+
+ const bins=60;
+ const hist=new Array(bins).fill(0);
+
+ const max=Math.max(...all);
+ const min=Math.min(...all);
+
+ all.forEach(v=>{
+  const i=Math.floor((v-min)/(max-min)*(bins-1));
+  hist[i]++;
+ });
+
+ const maxCount=Math.max(...hist);
+
+ hist.forEach((c,i)=>{
+  const x=i/bins*dist.width;
+  const h=c/maxCount*dist.height;
+
+  dctx.fillStyle="#00ffaa88";
+  dctx.fillRect(x,dist.height-h,
+                dist.width/bins-2,h);
+ });
+
+ dctx.fillStyle="#aaa";
+ dctx.fillText(
+  "Normaalijakauma σ="+
+  params["Normaalijakauman keskihajonta (σ)"].toFixed(3),
+  10,15);
+}
+
+/* ===================== LUUPPI ===================== */
+
+function step(){
+
+ const shock = normalRandom(
+   0,
+   params["Ulkoisen tekijän voimakkuus (markkinan ylireagointimuuttuja)"]/100
+ );
+
+ dynamicMean = lastClose * Math.exp(shock);
+
+ let prices=[];
+ let imbalance=0;
+
+ for(let i=0;i<
+   params["Simuloidut kaupat / kynttilä (kpl)"];i++){
+  const r=matchTrades();
+  prices.push(...r.trades);
+  imbalance+=r.imbalance;
+ }
+
+ dynamicMean+=
+   imbalance*
+   params["Kysynnän ja tarjonnan epätasapainon vaikutuskerroin"];
+
+ addCandle(prices);
+
+ drawCandles();
+ drawCurves();
+ drawDistribution();
+
+ setTimeout(
+   step,
+   params["Kynttilän laskemisten välinen aikaintervalli (ms)"]
+ );
+}
+
+window.addEventListener("resize",()=>{
+ drawCandles();
+ drawCurves();
+ drawDistribution();
+});
+
+step();
+
+</script>
+</body>
+</html>
