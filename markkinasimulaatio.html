@@ -122,7 +122,7 @@ const explanations={
 "Myyjät (kpl)":
 "Kasvattaa myyjä-agenttien määrää. Lisää tarjontaa ja kasvattaa hintojen laskupainetta agenttien matching-vaiheessa.",
 "Normaalijakauman keskihajonta (σ)":
-"Määrittää logaritminormaalijakauman hajonnan, josta agenttien hintavalmius arvotaan. Suurempi σ lisää (etenkin kynttilän sisäistä) volatiliteettia eksponentiaalisesti.",
+"Määrittää logaritminormaalijakauman hajonnan, josta agenttien hintavalmius arvotaan. Suurempi σ lisää (etenkin kynttilän sisäistä) volatiliteettia eksponentiaalisesti. Suurempi arvo ''levittää'' normaalijakaumaa voimakkaasti, mikä johtaa negatiivisiin tarjouksiin. Nämä käsitellään automaattisesti nollana, sillä tarjoukset saavat olla vain epänegatiivisia. Suuri nollatarjousten määrä aiheuttaa epäsymmetriaa, kuten S ja D käyrien painumisen keskeltä. Tämä tekee markkinadynamiikasta vinoutuneen.",
 "Kynttilän laskemisten välinen aikaintervalli (ms)":
 "Määrittää kuinka usein simulaation askel suoritetaan. Vaikuttaa vain simulaatiokierrosten väliseen odotusaikaan, ei markkinadynamiikkaan.",
 "Simuloidut kaupat / kynttilä (kpl)":
