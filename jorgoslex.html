@@ -1,5 +1,5 @@
 <style>
-/* Mobiilioptimointi */
+/* --- Perus reset mobiilia varten --- */
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -8,15 +8,23 @@ body {
   margin: 0;
 }
 
-/* Sisältöwrapper */
+/* --- Pääwrapper --- */
 .jorgos-wrapper {
   padding: 10%;
   box-sizing: border-box;
   max-width: 100%;
   margin: auto;
+
+  /* automaattisesti skaalautuva perusfontti */
+  font-size: clamp(15px, 1.1vw, 18px);
+  line-height: 1.65;
+
+  /* laiteriippumaton hyvä fontti */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, Arial, sans-serif;
 }
 
-/* Parempi luettavuus mobiilissa */
+/* --- Rajoitetaan tekstin lukuleveys --- */
 .jorgos-wrapper h1,
 .jorgos-wrapper h3,
 .jorgos-wrapper h4,
@@ -26,16 +34,28 @@ body {
   margin-right: auto;
 }
 
-/* Responsiivinen fonttikoko */
+/* --- Fluid typography (skaalautuvat otsikot) --- */
+.jorgos-wrapper h1 {
+  font-size: clamp(28px, 4vw, 42px);
+}
+
+.jorgos-wrapper h3 {
+  font-size: clamp(20px, 2.5vw, 26px);
+}
+
+.jorgos-wrapper h4 {
+  font-size: clamp(17px, 2vw, 22px);
+}
+
+.jorgos-wrapper p {
+  font-size: clamp(15px, 1.2vw, 18px);
+}
+
+/* --- Mobiilissa hieman pienempi reunatila --- */
 @media (max-width: 768px) {
   .jorgos-wrapper {
     padding: 8%;
   }
-
-  h1 { font-size: 1.8rem; }
-  h3 { font-size: 1.3rem; }
-  h4 { font-size: 1.1rem; }
-  p  { font-size: 1rem; line-height: 1.6; }
 }
 </style>
 
