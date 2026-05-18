@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>088A7F635995DDA439A79B6CAE525DC8811A9AB5D89D378E155CDD237C9864CE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #ffffff;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .scene {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .img-wrap {
+    position: relative;
+    max-width: 100vw;
+    max-height: 100vh;
+    line-height: 0;
+  }
+
+  .img-wrap img {
+    display: block;
+    max-width: 82vw;
+    max-height: 82vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* CRT scanline overlay */
+  .img-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 3px,
+      rgba(0,0,0,0.07) 3px,
+      rgba(0,0,0,0.07) 4px
+    );
+    animation: scanroll 8s linear infinite;
+  }
+
+  @keyframes scanroll {
+    0%   { background-position: 0 0; }
+    100% { background-position: 0 100px; }
+  }
+
+  /* RGB shift layers */
+  .glitch-r,
+  .glitch-b {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0;
+  }
+
+  .glitch-r {
+    mix-blend-mode: screen;
+    filter: url(#redChannel);
+  }
+
+  .glitch-b {
+    mix-blend-mode: screen;
+    filter: url(#blueChannel);
+  }
+
+  /* Horizontal tear strips */
+  .tear {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    pointer-events: none;
+    height: 0;
+    overflow: hidden;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0;
+    mix-blend-mode: multiply;
+  }
+
+  /* Noise flash */
+  .noise-flash {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    opacity: 0;
+    background: rgba(255,255,255,0.92);
+  }
+
+  /* Phosphor afterglow bar */
+  .phosphor {
+    position: absolute;
+    left: 0; right: 0;
+    height: 6px;
+    z-index: 7;
+    pointer-events: none;
+    background: linear-gradient(to right,
+      rgba(120,255,180,0), rgba(120,255,180,0.7), rgba(120,255,180,0));
+    opacity: 0;
+    top: 50%;
+  }
+
+  /* Static grain canvas */
+  #grain {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  /* ── Full-page CRT layer ── */
+  #page-scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 3px,
+      rgba(0,0,0,0.09) 3px,
+      rgba(0,0,0,0.09) 4px
+    );
+    animation: scanroll 8s linear infinite;
+  }
+
+  #page-phosphor {
+    position: fixed;
+    left: 0; right: 0;
+    height: 10px;
+    z-index: 91;
+    pointer-events: none;
+    background: linear-gradient(to right,
+      rgba(120,255,180,0), rgba(120,255,180,0.55), rgba(120,255,180,0));
+    opacity: 0;
+    top: 50%;
+  }
+
+  #page-grain {
+    position: fixed;
+    inset: 0;
+    z-index: 92;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  #page-glitch-r,
+  #page-glitch-b {
+    position: fixed;
+    inset: 0;
+    z-index: 93;
+    pointer-events: none;
+    opacity: 0;
+  }
+  #page-glitch-r { background: rgba(255,0,60,0.22); mix-blend-mode: screen; }
+  #page-glitch-b { background: rgba(0,80,255,0.22); mix-blend-mode: screen; }
+
+  #page-tear {
+    position: fixed;
+    left: 0; right: 0;
+    z-index: 94;
+    pointer-events: none;
+    height: 0;
+    overflow: hidden;
+    background: rgba(255,255,255,0.12);
+    opacity: 0;
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="redChannel" x="0%" y="0%" width="100%" height="100%">
+      <feColorMatrix type="matrix"
+        values="1 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0.9 0"/>
+    </filter>
+    <filter id="blueChannel" x="0%" y="0%" width="100%" height="100%">
+      <feColorMatrix type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 1 0 0
+                0 0 0 0.9 0"/>
+    </filter>
+  </defs>
+</svg>
+
+<div id="page-scanlines"></div>
+<div id="page-phosphor"></div>
+<canvas id="page-grain"></canvas>
+<div id="page-glitch-r"></div>
+<div id="page-glitch-b"></div>
+<div id="page-tear"></div>
+<div class="scene">
+  <div class="img-wrap" id="wrap">
+    <img id="mainImg" src="Nimetön_taide_maalaus_paintart_leikattu_rajattu_edit1_cropattu.png" alt="Digitaalinen taide">
+    <div class="glitch-r" id="glitchR"></div>
+    <div class="glitch-b" id="glitchB"></div>
+    <div class="tear" id="tear1"></div>
+    <div class="tear" id="tear2"></div>
+    <div class="noise-flash" id="noiseFlash"></div>
+    <div class="phosphor" id="phosphor"></div>
+    <canvas id="grain"></canvas>
+  </div>
+</div>
+
+<script>
+const wrap       = document.getElementById('wrap');
+const mainImg    = document.getElementById('mainImg');
+const glitchR    = document.getElementById('glitchR');
+const glitchB    = document.getElementById('glitchB');
+const tear1      = document.getElementById('tear1');
+const tear2      = document.getElementById('tear2');
+const noiseFlash = document.getElementById('noiseFlash');
+const phosphor   = document.getElementById('phosphor');
+const grain      = document.getElementById('grain');
+
+mainImg.addEventListener('load', init);
+if (mainImg.complete) init();
+
+function init() {
+  const src = `url('${mainImg.src}')`;
+  glitchR.style.backgroundImage = src;
+  glitchB.style.backgroundImage = src;
+  tear1.style.backgroundImage   = src;
+  tear2.style.backgroundImage   = src;
+  resizeGrain();
+  scheduleGlitch();
+}
+
+window.addEventListener('resize', resizeGrain);
+function resizeGrain() {
+  const r = mainImg.getBoundingClientRect();
+  grain.width  = r.width;
+  grain.height = r.height;
+}
+
+function scheduleGlitch() {
+  // Glitch event every xx with occasional rapid bursts
+  const wait = 256 + Math.random() * 6400;
+  setTimeout(() => {
+    runGlitchEvent();
+    // 30% chance of a rapid follow-up glitch 80–250ms later
+    if (Math.random() < 0.30) {
+      setTimeout(runGlitchEvent, 80 + Math.random() * 170);
+    }
+    scheduleGlitch();
+  }, wait);
+}
+
+function runGlitchEvent() {
+  const effects = shuffle([rgbShift, horizontalTear, staticFlash, phosphorSweep, grainBurst, frameJump, colorInvert]);
+  // Fire 2–4 effects simultaneously for chaos
+  const count = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) effects[i]();
+}
+
+function rgbShift() {
+  const steps = 2 + Math.floor(Math.random() * 4);
+  let step = 0;
+  function jolt() {
+    const shiftX = (Math.random() - 0.5) * 55;
+    const shiftY = (Math.random() - 0.5) * 20;
+    // Page-level RGB layers
+    pageGlitchR.style.transform = `translate(${shiftX}px, ${shiftY}px)`;
+    pageGlitchB.style.transform = `translate(${-shiftX * 0.7}px, ${-shiftY}px)`;
+    pageGlitchR.style.opacity   = (0.55 + Math.random() * 0.35).toString();
+    pageGlitchB.style.opacity   = (0.55 + Math.random() * 0.35).toString();
+    // Also shift the image-level layers for extra punch
+    glitchR.style.transition = 'none';
+    glitchB.style.transition = 'none';
+    glitchR.style.transform  = `translate(${shiftX}px, ${shiftY}px)`;
+    glitchB.style.transform  = `translate(${-shiftX * 0.7}px, ${-shiftY}px)`;
+    glitchR.style.opacity    = (0.6 + Math.random() * 0.35).toString();
+    glitchB.style.opacity    = (0.6 + Math.random() * 0.35).toString();
+    if (++step < steps) setTimeout(jolt, 40 + Math.random() * 80);
+    else setTimeout(() => {
+      pageGlitchR.style.opacity = '0'; pageGlitchB.style.opacity = '0';
+      glitchR.style.opacity = '0'; glitchB.style.opacity = '0';
+    }, 60);
+  }
+  jolt();
+}
+
+function horizontalTear() {
+  // Tear across full page
+  const topPct   = 2 + Math.random() * 90;
+  const heightPx = 20 + Math.random() * 90;
+  const dur      = 80 + Math.random() * 220;
+  pageTear.style.top    = topPct + '%';
+  pageTear.style.height = heightPx + 'px';
+  pageTear.style.opacity = '0.85';
+  if (Math.random() > 0.5) {
+    setTimeout(() => {
+      pageTear.style.top = (topPct + (Math.random()-0.5)*10) + '%';
+    }, dur * 0.4);
+  }
+  setTimeout(() => { pageTear.style.opacity = '0'; }, dur);
+  // Also tear on the image strips
+  [tear1, tear2].forEach((el) => {
+    if (Math.random() > 0.5) return;
+    const offsetX = (Math.random() - 0.5) * 80;
+    el.style.top    = topPct + '%';
+    el.style.height = heightPx + 'px';
+    el.style.backgroundPositionX = `calc(center + ${offsetX}px)`;
+    el.style.opacity = '1';
+    setTimeout(() => { el.style.opacity = '0'; }, dur);
+  });
+}
+
+function staticFlash() {
+  // Draw noise on the full-page canvas
+  const ctx = pageGrain.getContext('2d');
+  const w = pageGrain.width, h = pageGrain.height;
+  if (!w || !h) return;
+  let frames = 0;
+  const maxFrames = 5 + Math.floor(Math.random() * 8);
+  function drawStatic() {
+    const img = ctx.createImageData(w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.random() > 0.45 ? 255 : 0;
+      d[i] = d[i+1] = d[i+2] = v;
+      d[i+3] = 100 + Math.random() * 120;
+    }
+    ctx.putImageData(img, 0, 0);
+    pageGrain.style.opacity = (0.3 + Math.random() * 0.5).toString();
+    if (++frames < maxFrames) setTimeout(drawStatic, 25 + Math.random() * 35);
+    else { pageGrain.style.opacity = '0'; ctx.clearRect(0,0,w,h); }
+  }
+  drawStatic();
+}
+
+function phosphorSweep() {
+  pagePhosphor.style.height = (8 + Math.random() * 20) + 'px';
+  const pct = 5 + Math.random() * 75;
+  pagePhosphor.style.top = pct + '%';
+  pagePhosphor.style.opacity = '1';
+  pagePhosphor.style.transition = 'top 0.2s linear, opacity 0.1s ease';
+  const endPct = pct + 15 + Math.random() * 30;
+  setTimeout(() => {
+    pagePhosphor.style.top = endPct + '%';
+    pagePhosphor.style.opacity = '0.7';
+    setTimeout(() => { pagePhosphor.style.opacity = '0'; }, 120);
+  }, 40);
+}
+
+function grainBurst() {
+  const ctx = pageGrain.getContext('2d');
+  const w = pageGrain.width, h = pageGrain.height;
+  if (!w || !h) return;
+  let frames = 0;
+  const maxFrames = 3 + Math.floor(Math.random() * 5);
+  function draw() {
+    const img = ctx.createImageData(w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = 60 + Math.random() * 195;
+      d[i] = v; d[i+1] = v * 0.85; d[i+2] = v * 1.1;
+      d[i+3] = 50 + Math.random() * 100;
+    }
+    ctx.putImageData(img, 0, 0);
+    pageGrain.style.opacity = (0.35 + Math.random() * 0.4).toString();
+    if (++frames < maxFrames) setTimeout(draw, 30 + Math.random() * 50);
+    else { pageGrain.style.opacity = '0'; ctx.clearRect(0,0,w,h); }
+  }
+  draw();
+}
+
+function frameJump() {
+  // Shift the entire scene (image + surroundings)
+  const scene = document.querySelector('.scene');
+  const dy = (Math.random() - 0.5) * 40;
+  const skewX = (Math.random() - 0.5) * 6;
+  scene.style.transition = 'none';
+  scene.style.transform  = `translateY(${dy}px) skewX(${skewX}deg)`;
+  const midDy = (Math.random() - 0.5) * 20;
+  setTimeout(() => {
+    scene.style.transform = `translateY(${midDy}px) skewX(${-skewX * 0.5}deg)`;
+    setTimeout(() => { scene.style.transform = 'none'; }, 60 + Math.random() * 80);
+  }, 50 + Math.random() * 70);
+}
+
+function colorInvert() {
+  // Invert the entire page body briefly
+  document.body.style.transition = 'none';
+  document.body.style.filter = 'invert(1) hue-rotate(' + Math.floor(Math.random()*360) + 'deg)';
+  setTimeout(() => { document.body.style.filter = 'none'; }, 40 + Math.random() * 80);
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* ── Full-page glitch layer ── */
+const pageGrain    = document.getElementById('page-grain');
+const pagePhosphor = document.getElementById('page-phosphor');
+const pageGlitchR  = document.getElementById('page-glitch-r');
+const pageGlitchB  = document.getElementById('page-glitch-b');
+const pageTear     = document.getElementById('page-tear');
+
+function resizePageGrain() {
+  pageGrain.width  = window.innerWidth;
+  pageGrain.height = window.innerHeight;
+}
+resizePageGrain();
+window.addEventListener('resize', resizePageGrain);
+
+function schedulePageGlitch() {
+  const wait = 600 + Math.random() * 2000;
+  setTimeout(() => {
+    runPageGlitch();
+    if (Math.random() < 0.25) setTimeout(runPageGlitch, 60 + Math.random() * 140);
+    schedulePageGlitch();
+  }, wait);
+}
+
+function runPageGlitch() {
+  const effects = shuffle([pageRgbFlash, pageGrainBurst, pagePhosphorSweep, pageTearFlash, pageScanlineFlicker]);
+  const count = 1 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) effects[i]();
+}
+
+function pageRgbFlash() {
+  const shiftX = (Math.random() - 0.5) * 28;
+  pageGlitchR.style.transform = `translateX(${shiftX}px)`;
+  pageGlitchB.style.transform = `translateX(${-shiftX * 0.7}px)`;
+  pageGlitchR.style.opacity = (0.3 + Math.random() * 0.5).toString();
+  pageGlitchB.style.opacity = (0.3 + Math.random() * 0.5).toString();
+  const dur = 50 + Math.random() * 130;
+  setTimeout(() => {
+    pageGlitchR.style.opacity = '0';
+    pageGlitchB.style.opacity = '0';
+  }, dur);
+}
+
+function pageGrainBurst() {
+  const ctx = pageGrain.getContext('2d');
+  const w = pageGrain.width, h = pageGrain.height;
+  let frames = 0;
+  const maxFrames = 3 + Math.floor(Math.random() * 5);
+  function draw() {
+    const img = ctx.createImageData(w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.random() > 0.5 ? 255 : 0;
+      d[i] = d[i+1] = d[i+2] = v;
+      d[i+3] = 40 + Math.random() * 90;
+    }
+    ctx.putImageData(img, 0, 0);
+    pageGrain.style.opacity = (0.12 + Math.random() * 0.25).toString();
+    if (++frames < maxFrames) setTimeout(draw, 25 + Math.random() * 40);
+    else { pageGrain.style.opacity = '0'; ctx.clearRect(0,0,w,h); }
+  }
+  draw();
+}
+
+function pagePhosphorSweep() {
+  const pct = 5 + Math.random() * 80;
+  pagePhosphor.style.height = (8 + Math.random() * 18) + 'px';
+  pagePhosphor.style.top = pct + '%';
+  pagePhosphor.style.opacity = '0.7';
+  pagePhosphor.style.transition = 'top 0.25s linear, opacity 0.12s ease';
+  setTimeout(() => {
+    pagePhosphor.style.top = (pct + 15 + Math.random() * 25) + '%';
+    pagePhosphor.style.opacity = '0';
+  }, 50);
+}
+
+function pageTearFlash() {
+  const topPct   = 5 + Math.random() * 85;
+  const heightPx = 10 + Math.random() * 60;
+  const dur      = 50 + Math.random() * 150;
+  pageTear.style.top    = topPct + '%';
+  pageTear.style.height = heightPx + 'px';
+  pageTear.style.opacity = (0.4 + Math.random() * 0.5).toString();
+  setTimeout(() => { pageTear.style.opacity = '0'; }, dur);
+}
+
+function pageScanlineFlicker() {
+  // Briefly intensify the scanlines
+  const sl = document.getElementById('page-scanlines');
+  sl.style.opacity = (1.5 + Math.random() * 1.5).toString();
+  setTimeout(() => { sl.style.opacity = '1'; }, 60 + Math.random() * 100);
+}
+
+schedulePageGlitch();
+</script>
+</body>
+</html>
