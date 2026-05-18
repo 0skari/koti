@@ -44,7 +44,6 @@
     z-index: 1;
   }
 
-  /* CRT scanline overlay */
   .img-wrap::before {
     content: '';
     position: absolute;
@@ -66,7 +65,6 @@
     100% { background-position: 0 100px; }
   }
 
-  /* RGB shift layers */
   .glitch-r,
   .glitch-b {
     position: absolute;
@@ -89,7 +87,6 @@
     filter: url(#blueChannel);
   }
 
-  /* Horizontal tear strips */
   .tear {
     position: absolute;
     left: 0;
@@ -105,7 +102,6 @@
     mix-blend-mode: multiply;
   }
 
-  /* Noise flash */
   .noise-flash {
     position: absolute;
     inset: 0;
@@ -115,7 +111,6 @@
     background: rgba(255,255,255,0.92);
   }
 
-  /* Phosphor afterglow bar */
   .phosphor {
     position: absolute;
     left: 0; right: 0;
@@ -128,7 +123,6 @@
     top: 50%;
   }
 
-  /* Static grain canvas */
   #grain {
     position: absolute;
     inset: 0;
@@ -137,7 +131,6 @@
     opacity: 0;
   }
 
-  /* ── Full-page CRT layer ── */
   #page-scanlines {
     position: fixed;
     inset: 0;
@@ -225,7 +218,7 @@
 <div id="page-tear"></div>
 <div class="scene">
   <div class="img-wrap" id="wrap">
-    <img id="mainImg" src="Nimetön_taide_maalaus_paintart_leikattu_rajattu_edit1_cropattu.png" alt="Digitaalinen taide">
+    <img id="mainImg" src="Nimetön_taide_maalaus_paintart_leikattu_rajattu_edit1_cropattu.png" alt="PaintArtTässä">
     <div class="glitch-r" id="glitchR"></div>
     <div class="glitch-b" id="glitchB"></div>
     <div class="tear" id="tear1"></div>
@@ -268,11 +261,9 @@ function resizeGrain() {
 }
 
 function scheduleGlitch() {
-  // Glitch event every xx with occasional rapid bursts
   const wait = 256 + Math.random() * 6400;
   setTimeout(() => {
     runGlitchEvent();
-    // 30% chance of a rapid follow-up glitch 80–250ms later
     if (Math.random() < 0.30) {
       setTimeout(runGlitchEvent, 80 + Math.random() * 170);
     }
@@ -282,7 +273,6 @@ function scheduleGlitch() {
 
 function runGlitchEvent() {
   const effects = shuffle([rgbShift, horizontalTear, staticFlash, phosphorSweep, grainBurst, frameJump, colorInvert]);
-  // Fire 2–4 effects simultaneously for chaos
   const count = 2 + Math.floor(Math.random() * 3);
   for (let i = 0; i < count; i++) effects[i]();
 }
@@ -293,12 +283,10 @@ function rgbShift() {
   function jolt() {
     const shiftX = (Math.random() - 0.5) * 55;
     const shiftY = (Math.random() - 0.5) * 20;
-    // Page-level RGB layers
     pageGlitchR.style.transform = `translate(${shiftX}px, ${shiftY}px)`;
     pageGlitchB.style.transform = `translate(${-shiftX * 0.7}px, ${-shiftY}px)`;
     pageGlitchR.style.opacity   = (0.55 + Math.random() * 0.35).toString();
     pageGlitchB.style.opacity   = (0.55 + Math.random() * 0.35).toString();
-    // Also shift the image-level layers for extra punch
     glitchR.style.transition = 'none';
     glitchB.style.transition = 'none';
     glitchR.style.transform  = `translate(${shiftX}px, ${shiftY}px)`;
@@ -315,7 +303,6 @@ function rgbShift() {
 }
 
 function horizontalTear() {
-  // Tear across full page
   const topPct   = 2 + Math.random() * 90;
   const heightPx = 20 + Math.random() * 90;
   const dur      = 80 + Math.random() * 220;
@@ -328,7 +315,6 @@ function horizontalTear() {
     }, dur * 0.4);
   }
   setTimeout(() => { pageTear.style.opacity = '0'; }, dur);
-  // Also tear on the image strips
   [tear1, tear2].forEach((el) => {
     if (Math.random() > 0.5) return;
     const offsetX = (Math.random() - 0.5) * 80;
@@ -341,7 +327,6 @@ function horizontalTear() {
 }
 
 function staticFlash() {
-  // Draw noise on the full-page canvas
   const ctx = pageGrain.getContext('2d');
   const w = pageGrain.width, h = pageGrain.height;
   if (!w || !h) return;
@@ -400,7 +385,6 @@ function grainBurst() {
 }
 
 function frameJump() {
-  // Shift the entire scene (image + surroundings)
   const scene = document.querySelector('.scene');
   const dy = (Math.random() - 0.5) * 40;
   const skewX = (Math.random() - 0.5) * 6;
@@ -414,7 +398,6 @@ function frameJump() {
 }
 
 function colorInvert() {
-  // Invert the entire page body briefly
   document.body.style.transition = 'none';
   document.body.style.filter = 'invert(1) hue-rotate(' + Math.floor(Math.random()*360) + 'deg)';
   setTimeout(() => { document.body.style.filter = 'none'; }, 40 + Math.random() * 80);
@@ -428,7 +411,6 @@ function shuffle(arr) {
   return arr;
 }
 
-/* ── Full-page glitch layer ── */
 const pageGrain    = document.getElementById('page-grain');
 const pagePhosphor = document.getElementById('page-phosphor');
 const pageGlitchR  = document.getElementById('page-glitch-r');
@@ -514,7 +496,6 @@ function pageTearFlash() {
 }
 
 function pageScanlineFlicker() {
-  // Briefly intensify the scanlines
   const sl = document.getElementById('page-scanlines');
   sl.style.opacity = (1.5 + Math.random() * 1.5).toString();
   setTimeout(() => { sl.style.opacity = '1'; }, 60 + Math.random() * 100);
