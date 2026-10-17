@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paskahousu – paikallinen peli</title>
+<style>
+:root{--felt:#176b4b;--felt2:#0e5138;--gold:#f4d37a;--ink:#18231d;--paper:#fffdf6;--red:#c62828}
+*{box-sizing:border-box}
+body{margin:0;background:#102f25;color:#f8f8ef;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit}
+button{border:1px solid #d9d5c8;border-radius:10px;padding:.58rem .85rem;background:var(--paper);color:var(--ink);cursor:pointer;font-weight:650;box-shadow:0 2px 0 #0002}
+button:hover:not(:disabled){filter:brightness(1.06)}
+button:disabled{opacity:.42;cursor:not-allowed}
+header{padding:16px 20px;background:#0b241c;border-bottom:1px solid #ffffff20;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:clamp(1.25rem,3vw,1.8rem);margin:0}
+.sub{font-size:.88rem;color:#c9ded3;margin-top:3px}
+.top-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.top-controls label{font-size:.85rem;color:#d8e8df;display:flex;align-items:center;gap:6px}
+input[type=number]{width:88px;padding:7px;border-radius:8px;border:1px solid #b9c4bc}
+main{max-width:1400px;margin:auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+.table{min-height:650px;position:relative;border:8px solid #5b3825;border-radius:30px;background:radial-gradient(ellipse at center,var(--felt),var(--felt2));box-shadow:inset 0 0 0 3px #b88a50,inset 0 0 45px #001c12;overflow:hidden;padding:14px;display:flex;flex-direction:column;gap:12px}
+.seat{display:flex;align-items:center;justify-content:center;gap:12px;min-height:90px;flex-wrap:wrap}
+.seat-info{min-width:85px;text-align:center;font-weight:750}
+.seat-info small{display:block;font-weight:500;color:#d6e9dc}
+.seat.active .seat-info{color:var(--gold)}
+.hand{display:flex;justify-content:center;gap:5px;flex-wrap:wrap;align-items:center;min-height:105px}
+.card{width:clamp(43px,5.2vw,68px);height:clamp(65px,7.4vw,96px);border-radius:8px;background:var(--paper);color:var(--ink);border:1px solid #d8d2c5;box-shadow:0 3px 5px #00170f66;position:relative;display:flex;align-items:center;justify-content:center;font-size:clamp(1.1rem,2vw,1.6rem);font-weight:800;flex-shrink:0;user-select:none}
+.card.red{color:var(--red)}
+.card .corner{position:absolute;top:4px;left:5px;font-size:.65rem;line-height:1.05;text-align:center}
+.card .corner.bottom{top:auto;left:auto;bottom:4px;right:5px;transform:rotate(180deg)}
+.card.back{background:repeating-linear-gradient(45deg,#193f7b,#193f7b 5px,#e8e8ed 5px,#e8e8ed 7px);border:3px solid #f9f8ef;color:transparent}
+.card.selectable{cursor:pointer;transition:transform .15s,box-shadow .15s}
+.card.selectable:hover{transform:translateY(-5px)}
+.card.selected{transform:translateY(-10px);outline:3px solid var(--gold)}
+.center{display:flex;align-items:center;justify-content:center;gap:18px;flex:1;min-height:165px;flex-wrap:wrap}
+.pile-area{text-align:center;min-width:145px}
+.pile-label{font-size:.8rem;color:#d6e9dc;margin-bottom:8px}
+.pile{height:105px;display:flex;align-items:center;justify-content:center;position:relative;min-width:145px}
+.pile .card{margin-left:-43px}
+.pile .card:first-child{margin-left:0}
+.pile-count,.burnt-count{font-size:.82rem;color:#e1f1e7;margin-top:7px}
+.deck{width:68px;height:96px;border-radius:8px;background:repeating-linear-gradient(45deg,#173b72,#173b72 5px,#f2f0e8 5px,#f2f0e8 7px);border:4px solid #fffdf6;box-shadow:0 4px 8px #00170f66;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:1.3rem}
+.deck.empty{background:#ffffff18;border:2px dashed #ffffff50;color:#ffffff80}
+.burnt{display:flex;align-items:center;justify-content:center;position:relative;width:130px;height:100px}
+.burnt .card{position:absolute;width:53px;height:76px;transform:rotate(var(--rot))}
+.controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding:8px}
+.status{padding:10px 12px;border-radius:12px;background:#082d20a8;border:1px solid #ffffff20;min-height:44px;line-height:1.4}
+.side{display:flex;flex-direction:column;gap:12px}
+.panel{border:1px solid #ffffff22;background:#173c30;border-radius:14px;padding:14px}
+.panel h2{font-size:1rem;margin:0 0 10px}
+.panel p{margin:6px 0;color:#d9e8df;font-size:.9rem;line-height:1.45}
+.rules{font-size:.84rem;line-height:1.5;color:#d9e8df}
+.log{max-height:240px;overflow:auto;font-size:.83rem;line-height:1.45;color:#dcece2}
+.log div{padding:5px 0;border-bottom:1px solid #ffffff12}
+.hint{color:#d3e7dc;font-size:.84rem}
+.primary{background:var(--gold);border-color:#e6be54}
+#pickupBtn.timing{background:linear-gradient(90deg,#ef5350 var(--p,0%),var(--paper) var(--p,0%));border-color:#c62828}
+.overlay{position:absolute;inset:0;background:#06180fc9;display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
+.overlay.show{display:flex}
+.dialog{max-width:460px;width:100%;background:#fdfbf3;color:#17231d;border-radius:18px;padding:24px;text-align:center}
+.animation-card{position:absolute;z-index:15;pointer-events:none;transition:transform 1s cubic-bezier(.2,.75,.25,1),opacity .2s}
+@media(max-width:980px){main{grid-template-columns:1fr}.side{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
+@media(max-width:600px){main{padding:7px}.table{padding:7px;border-width:5px}.center{gap:5px}.pile-area{min-width:100px}.pile{min-width:100px}.pile .card{margin-left:-47px}.seat{gap:3px}.seat-info{min-width:65px;font-size:.85rem}.hand{gap:3px}}
+</style>
+</head>
+<body>
+<header>
+ <div><h1>♠ Paskahousu</h1><div class="sub">Paikallinen selainpeli · sinä vastaan Monte Carlo -botti</div></div>
+ <div class="top-controls">
+  <label>Monte Carlo -kokeita (suurempi = haastavampi)<input id="trials" type="number" min="2" max="20000" value="2500"></label>
+  <button id="sortToggle" class="primary" aria-pressed="false">Automaattinen käden järjestely: pois</button>
+  <button id="newBtn">Uusi peli</button>
+ </div>
+</header>
+<main>
+<section class="table" id="table">
+ <div class="seat" id="aiSeat">
+  <div class="seat-info">Botti<small id="aiCount">5 korttia</small></div>
+  <div class="hand" id="aiHand"></div>
+ </div>
+ <div class="center">
+  <div class="pile-area"><div class="pile-label">Pakka</div><div class="deck" id="deck">♠</div><div class="pile-count" id="deckCount"></div></div>
+  <div class="pile-area"><div class="pile-label">Pino · 4 viimeistä pelattua korttia</div><div class="pile" id="pile"><span class="hint">Tyhjä</span></div><div class="pile-count" id="pileCount"></div></div>
+  <div class="pile-area"><div class="pile-label">Kaadetut kortit</div><div class="burnt" id="burnt"></div><div class="burnt-count" id="burntCount"></div></div>
+ </div>
+ <div class="status" id="status" aria-live="polite">Aloitetaan uusi peli.</div>
+ <div class="controls">
+  <button id="playBtn" class="primary" disabled>Lyö valitut</button>
+  <button id="pickupBtn" disabled>Nosta pino</button>
+  <button id="tryBtn" disabled>Tsäkä</button>
+  <button id="clearBtn" disabled>Tyhjennä valinta</button>
+ </div>
+ <div class="seat active" id="humanSeat">
+  <div class="seat-info">Sinä<small id="humanCount">5 korttia</small></div>
+  <div class="hand" id="humanHand"></div>
+ </div>
+ <div class="overlay" id="overlay"><div class="dialog"><h2 id="dialogTitle"></h2><p id="dialogText"></p><button id="againBtn" class="primary">Pelaa uudelleen</button></div></div>
+</section>
+<aside class="side">
+ <div class="panel"><h2>Pelitilanne</h2><p id="turnInfo"></p><p id="forcedInfo"></p><p id="mcInfo"></p><p class="hint"></p></div>
+ <div class="panel"><h2>Tapahtumat</h2><div class="log" id="log"></div></div>
+ <!--
+ <div class="panel"><h2>Säännöt</h2><div class="rules">
+ <b>Maat:</b> pata ♠, risti ♣, hertta ♥, ruutu ♦.<br>
+ </div></div>
+ -->
+</aside>
+</main>
+<script>
+'use strict';
+(()=>{
+const SUITS=[
+ {code:'pa',symbol:'♠',red:false},
+ {code:'ri',symbol:'♣',red:false},
+ {code:'he',symbol:'♥',red:true},
+ {code:'ru',symbol:'♦',red:true}
+];
+const RANKS=['3','4','5','6','7','8','9','10','J','Q','K','A','2'];
+const VALUE=Object.fromEntries(RANKS.map((r,i)=>[r,i]));
+const PICTURES=['J','Q','K'];
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+let game=null,selected=new Set(),busy=false,autoSort=false;
+
+/* ---------- Web Worker -pooli ---------- */
+// Käytetään kaikkia loogisia ytimiä.
+const CORES=Math.max(1,navigator.hardwareConcurrency||4);
+// Versionumero pakottaa selaimen lataamaan uusimman työntekijätiedoston (ei vanhaa välimuistiversiota).
+const WORKER_URL='monte-carlo-worker.js?v=3-tsaka';
+let pool=null,jobSeq=0;
+const pending=new Map();
+
+function initPool(){
+ if(pool)return pool;
+ pool=[];
+ for(let i=0;i<CORES;i++){
+  const w=new Worker(WORKER_URL);
+  w.onmessage=e=>{
+   const p=pending.get(e.data.id);
+   if(p){pending.delete(e.data.id);p.resolve(e.data)}
+  };
+  w.onerror=err=>{
+   // Hylätään tämän työntekijän avoimet työt.
+   for(const [id,p] of pending){
+    if(p.worker===w){pending.delete(id);p.reject(err)}
+   }
+  };
+  pool.push(w);
+ }
+ return pool;
+}
+function runJob(worker,payload){
+ return new Promise((resolve,reject)=>{
+  const id=++jobSeq;
+  pending.set(id,{resolve,reject,worker});
+  worker.postMessage({...payload,id});
+ });
+}
+
+/* ---------- Pelaajan 15 sekunnin ajastin ---------- */
+const TURN_MS=15000;
+let timer=null;
+function stopTimer(){
+ if(timer){
+  cancelAnimationFrame(timer.raf);
+  clearTimeout(timer.timeout);
+  timer=null;
+ }
+ const b=$('pickupBtn');
+ b.classList.remove('timing');
+ b.style.removeProperty('--p');
+}
+function startTimer(){
+ stopTimer();
+ const b=$('pickupBtn'),start=performance.now(),t={raf:0,timeout:0};
+ timer=t;
+ b.classList.add('timing');
+ b.style.setProperty('--p','0%');
+ const tick=now=>{
+  if(timer!==t)return;
+  b.style.setProperty('--p',Math.min(100,(now-start)/TURN_MS*100)+'%');
+  t.raf=requestAnimationFrame(tick);
+ };
+ t.raf=requestAnimationFrame(tick);
+ // Varmistus: aikakatkaisu toimii myös, jos välilehti on taustalla.
+ t.timeout=setTimeout(()=>{
+  if(timer!==t)return;
+  stopTimer();
+  b.click();
+ },TURN_MS);
+}
+// Ajastin käy, kun on pelaajan vuoro, pelaaja ei ole kesken siirron ja pino voidaan nostaa.
+function syncTimer(){
+ const shouldRun=!!game&&!game.over&&game.turn===0&&!busy&&game.pile.length>0;
+ if(shouldRun&&!timer)startTimer();
+ else if(!shouldRun&&timer)stopTimer();
+ else if(!shouldRun)stopTimer();
+}
+
+function suit(c){return SUITS.find(s=>s.code===c.s)}
+function key(c){return c.r+c.s}
+function label(c){return c.r+suit(c).symbol}
+function deck52(){return SUITS.flatMap(s=>RANKS.map(r=>({r,s:s.code})))}
+function shuffle(a){
+ for(let i=a.length-1;i>0;i--){
+  let j=Math.floor(Math.random()*(i+1));
+  [a[i],a[j]]=[a[j],a[i]];
+ }
+ return a;
+}
+function rankValue(c){return VALUE[c.r]*4+SUITS.findIndex(s=>s.code===c.s)}
+function sorted(cards){return [...cards].sort((a,b)=>rankValue(a)-rankValue(b))}
+function clampTrials(){
+ let n=Number.parseInt($('trials').value,10);
+ return Math.max(2,Math.min(20000,Number.isFinite(n)?n:100));
+}
+function log(text){
+ const d=document.createElement('div');
+ d.textContent=text;
+ $('log').prepend(d);
+}
+function status(text){$('status').textContent=text}
+function top(){return game.pile.at(-1)||null}
+function isPicture(r){return PICTURES.includes(r)}
+// Pinon neljä päällimmäistä korttia ovat samanarvoisia (pinon tila siirron jälkeen).
+// Kakkoset eivät koskaan kaadu, ei edes neljän kakkosen pinona.
+function fourOnTop(pile){
+ return pile.length>=4&&pile.at(-1).r!=='2'&&pile.slice(-4).every(c=>c.r===pile.at(-1).r);
+}
+// pile = pino sen jälkeen, kun pelatut kortit on lisätty siihen.
+function burnReason(cards,oldTop,pile){
+ if(fourOnTop(pile))return 'neljä samaa arvoa';
+ if(cards.length!==1||!oldTop)return null;
+ if(cards[0].r==='10'&&['3','4','5','6','7','8','9'].includes(oldTop.r))return 'kymppi';
+ if(cards[0].r==='A'&&PICTURES.includes(oldTop.r))return 'ässä';
+ return null;
+}
+
+/*
+ * Kaikkien siirtojen yhteinen sääntölogiikka.
+ * deckCount kertoo, montako korttia nostopakassa on jäljellä.
+ * Neljän samanarvoisen kortin kaato ei ohita sääntöjä: siirron on oltava
+ * ensin sallittu, ja vasta sen jälkeen pino kaatuu automaattisesti.
+ */
+function canPlay(cards,pile=game.pile,hand=game.hands[game.turn],deckCount=game.deck.length){
+ if(!cards.length)return {ok:false,reason:'Valitse kortti.'};
+
+ if(cards.some(c=>!hand.some(h=>key(h)===key(c))))
+  return {ok:false,reason:'Kortti ei ole kädessä.'};
+
+ if(cards.length>1&&(!cards.every(c=>c.r===cards[0].r)||cards.some(c=>['10','A'].includes(c.r))))
+  return {ok:false,reason:'Vain samanarvoiset kortit voi pelata yhdessä; 10 ja A pelataan yksin.'};
+
+ const t=pile.at(-1);
+
+ if(!t){
+  if(cards.some(c=>isPicture(c.r))&&deckCount>0)
+   return {ok:false,reason:'Kuvakortin voi pelata tyhjään pöytään vasta nostopakan loputtua.'};
+  return {ok:true};
+ }
+
+ // Kakkosen päälle ei voi pelata muuta kuin kakkosen.
+ if(t.r==='2'&&cards.some(c=>c.r!=='2'))
+  return {ok:false,reason:'Kakkosen päälle voi pelata vain kakkosen.'};
+
+ // Kymppi ja ässä ovat kaatokortteja, ja ne pelataan yksittäin.
+ if(cards.some(c=>['10','A'].includes(c.r))){
+  if(cards.length!==1)return {ok:false,reason:'Kympit ja ässät pelataan yksittäin.'};
+  if(cards[0].r==='10'&&['3','4','5','6','7','8','9'].includes(t.r))return {ok:true};
+  if(cards[0].r==='A'&&PICTURES.includes(t.r))return {ok:true};
+  return {ok:false,reason:'Tämä kaatokortti ei kaada pinon päällimmäistä.'};
+ }
+
+ // Kuvakortit vain vähintään seiskan päälle.
+ if(cards.some(c=>isPicture(c.r))){
+  if(!['7','8','9','J','Q','K'].includes(t.r))
+   return {ok:false,reason:'Kuvakortin voi pelata vain seiskan tai sallitun kuvakortin päälle.'};
+  if(cards.some(c=>VALUE[c.r]<VALUE[t.r]))
+   return {ok:false,reason:`Pelaa vähintään ${t.r} tai nosta pino.`};
+  return {ok:true};
+ }
+
+ if(cards.every(c=>c.r==='2'||VALUE[c.r]>=VALUE[t.r]))return {ok:true};
+ return {ok:false,reason:`Pelaa vähintään ${t.r} tai nosta pino.`};
+}
+
+/*
+ * Tuottaa botille ja simulaatioille vain sääntöjen mukaiset siirrot.
+ */
+function legalMoves(hand,pile,deckCount){
+ const groups={};
+ hand.forEach(c=>(groups[c.r]??=[]).push(c));
+ const moves=[];
+
+ for(const [r,cs] of Object.entries(groups)){
+  // Kokeillaan yksittäisiä kortteja yhteisen sääntötarkistuksen avulla.
+  for(const c of cs){
+   if(canPlay([c],pile,hand,deckCount).ok)moves.push([c]);
+  }
+
+  // Samanarvoiset kortit voi pelata kerralla (10 ja A vain yksittäin).
+  // Neljä samaa kaataa pinon, mutta vain jos siirto on muuten sallittu.
+  if(cs.length>1&&!['10','A'].includes(r)){
+   if(canPlay(cs,pile,hand,deckCount).ok)moves.push(cs.slice());
+   if(cs.length===4){
+    const smaller=cs.slice(0,3);
+    if(canPlay(smaller,pile,hand,deckCount).ok)moves.push(smaller);
+   }
+  }
+ }
+
+ const seen=new Set();
+ return moves.filter(m=>{
+  const k=m.map(key).sort().join(',');
+  if(seen.has(k))return false;
+  seen.add(k);
+  return true;
+ });
+}
+function movesFor(hand,pile,deckCount=game.deck.length){
+ return legalMoves(hand,pile,deckCount);
+}
+function refill(p){
+ while(game.hands[p].length<5&&game.deck.length)
+  game.hands[p].push(game.deck.pop());
+}
+function checkEnd(){
+ if(game.deck.length)return;
+ for(let p=0;p<2;p++){
+  if(game.hands[p].length===0){
+   game.over=true;
+   game.winner=p;
+   return;
+  }
+ }
+}
+function newGame(){
+ const d=shuffle(deck52());
+ game={
+  deck:d.slice(10),
+  hands:[d.slice(0,5),d.slice(5,10)],
+  pile:[],burnt:[],turn:0,forced:false,over:false,winner:null
+ };
+ const low=h=>Math.min(...h.map(rankValue));
+ game.turn=low(game.hands[0])<=low(game.hands[1])?0:1;
+ selected.clear();busy=false;
+ stopTimer();
+ $('overlay').classList.remove('show');
+ $('log').innerHTML='';
+ log(`Uusi peli. ${game.turn===0?'Sinä':'Botti'} aloittaa pienimmällä kortilla.`);
+ render();
+ status(`${game.turn===0?'Sinun':'Botin'} vuoro.`);
+ if(game.turn===1)queueAI();
+}
+function cardMarkup(c,back=false){
+ if(back)return '<div class="card back"></div>';
+ const s=suit(c);
+ return `<div class="card ${s.red?'red':'black'}"><span class="corner">${c.r}<br>${s.symbol}</span><span>${s.symbol}</span><span class="corner bottom">${c.r}<br>${s.symbol}</span></div>`;
+}
+function cardNode(c,back=false){
+ const w=document.createElement('div');
+ w.innerHTML=cardMarkup(c,back);
+ return w.firstElementChild;
+}
+function render(){
+ if(!game)return;
+ $('aiSeat').classList.toggle('active',game.turn===1&&!game.over);
+ $('humanSeat').classList.toggle('active',game.turn===0&&!game.over);
+ $('aiCount').textContent=`${game.hands[1].length} korttia`;
+ $('humanCount').textContent=`${game.hands[0].length} korttia`;
+
+ $('aiHand').innerHTML='';
+ game.hands[1].forEach(()=>$('aiHand').appendChild(cardNode(null,true)));
+
+ $('humanHand').innerHTML='';
+ const hand=autoSort?sorted(game.hands[0]):game.hands[0];
+ hand.forEach(c=>{
+  const node=cardNode(c);
+  node.classList.add('selectable');
+  node.title=label(c);
+  if(selected.has(key(c)))node.classList.add('selected');
+  node.addEventListener('click',()=>{
+   if(busy||game.over||game.turn!==0||game.forced)return;
+   selected.has(key(c))?selected.delete(key(c)):selected.add(key(c));
+   render();
+  });
+  $('humanHand').appendChild(node);
+ });
+
+ $('deckCount').textContent=`${game.deck.length} korttia`;
+ $('deck').classList.toggle('empty',!game.deck.length);
+ $('deck').textContent=game.deck.length?'♠':'—';
+
+ $('pile').innerHTML='';
+ if(!game.pile.length){
+  $('pile').innerHTML='<span class="hint">Tyhjä</span>';
+ }else{
+  game.pile.slice(-4).forEach((c,i,arr)=>{
+   const n=cardNode(c);
+   n.style.zIndex=i+1;
+   n.style.transform=`rotate(${(i-(arr.length-1)/2)*5}deg)`;
+   $('pile').appendChild(n);
+  });
+ }
+ $('pileCount').textContent=`${game.pile.length} korttia yhteensä`;
+
+ $('burnt').innerHTML='';
+ game.burnt.slice(-5).forEach((c,i)=>{
+  const n=cardNode(c);
+  n.style.setProperty('--rot',`${i*9-15}deg`);
+  n.style.zIndex=i+1;
+  n.style.opacity=.6+i*.08;
+  $('burnt').appendChild(n);
+ });
+ $('burntCount').textContent=`${game.burnt.length} korttia`;
+ $('turnInfo').textContent=`Vuoro: ${game.turn===0?'sinä':'botti'}`;
+ $('forcedInfo').textContent=game.forced
+  ?'Pakko nostaa: seuraava pelaaja ei saa pelata korttia.'
+  :'Ei nostopakkoa';
+ $('mcInfo').textContent=`Monte Carlo: ${clampTrials()} koetta / siirto`;
+
+ $('playBtn').disabled=busy||game.over||game.turn!==0||game.forced||selected.size===0;
+ $('pickupBtn').disabled=busy||game.over||game.turn!==0||!game.pile.length;
+ $('tryBtn').disabled=busy||game.over||game.turn!==0||game.forced||!game.deck.length;
+ $('clearBtn').disabled=busy||game.over||game.forced||selected.size===0;
+
+ syncTimer();
+ if(game.over)showEnd();
+}
+function showEnd(){
+ $('overlay').classList.add('show');
+ $('dialogTitle').textContent=game.winner===0?'Voitit pelin!':'Hävisit pelin; olet paskahousu.';
+ $('dialogText').textContent=game.winner===0
+  ?'Sait korttisi loppumaan ensin.'
+  :'Botti sai korttinsa loppumaan ensin. Kokeile uudelleen!';
+}
+function center(el){
+ const a=el.getBoundingClientRect(),b=$('table').getBoundingClientRect();
+ return {x:a.left+a.width/2-b.left,y:a.top+a.height/2-b.top};
+}
+async function animateMove(fromEl,toEl,cards,player){
+ if(!fromEl||!toEl){await sleep(1000);return}
+ const a=center(fromEl),b=center(toEl),ghost=document.createElement('div');
+ ghost.className='animation-card';
+ ghost.appendChild(cardNode(cards[0]));
+ ghost.style.left=(a.x-32)+'px';
+ ghost.style.top=(a.y-46)+'px';
+ $('table').appendChild(ghost);
+ ghost.getBoundingClientRect();
+ await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+ ghost.style.transform=`translate(${b.x-a.x}px,${b.y-a.y}px) rotate(${player?8:-5}deg)`;
+ await sleep(1020);
+ ghost.remove();
+}
+function sortCardsAnimated(){
+ if(!game)return;
+ const old=[...$('humanHand').children];
+ const starts=new Map(old.map(el=>[el.title,el.getBoundingClientRect()]));
+ const nodes=new Map(old.map(el=>[el.title,el]));
+ sorted(game.hands[0]).forEach(c=>{
+  const n=nodes.get(label(c));
+  if(n)$('humanHand').appendChild(n);
+ });
+ [...$('humanHand').children].forEach(el=>{
+  const first=starts.get(el.title),last=el.getBoundingClientRect();
+  if(!first)return;
+  const dx=first.left-last.left,dy=first.top-last.top;
+  el.style.transition='none';
+  el.style.transform=`translate(${dx}px,${dy}px)`;
+  el.getBoundingClientRect();
+  requestAnimationFrame(()=>{
+   el.style.transition='transform 1s cubic-bezier(.2,.75,.25,1)';
+   el.style.transform='';
+  });
+ });
+}
+function applyMove(p,cards){
+ const old=top(),empty=game.pile.length===0;
+ cards.forEach(c=>{
+  const i=game.hands[p].findIndex(x=>key(x)===key(c));
+  if(i>=0)game.hands[p].splice(i,1);
+  game.pile.push(c);
+ });
+ const reason=burnReason(cards,old,game.pile);
+
+ if(reason){
+  game.burnt.push(...game.pile);
+  game.pile=[];
+  game.forced=false;
+  refill(p);
+  game.turn=p;
+  log(`${p===0?'Sinä':'Botti'} kaatoi pinon (${reason}). Pino siirtyi kaadettuihin kortteihin; kaataja jatkaa.`);
+ }else if(empty&&cards.length===1&&['10','A'].includes(cards[0].r)){
+  game.forced=true;
+  game.turn=1-p;
+  refill(p);
+  log(`${p===0?'Sinä':'Botti'} pelasi ${label(cards[0])} tyhjään pöytään. Seuraavan on pakko nostaa pino ja menettää vuoro.`);
+ }else{
+  game.forced=false;
+  game.turn=1-p;
+  refill(p);
+  log(`${p===0?'Sinä':'Botti'} pelasi ${cards.map(label).join(', ')}.`);
+ }
+ checkEnd();
+}
+function pickup(p){
+ if(game.pile.length){
+  const n=game.pile.length;
+  game.hands[p].push(...game.pile);
+  game.pile=[];
+  log(`${p===0?'Sinä':'Botti'} nosti ${n} korttia ja menetti vuoron.`);
+ }
+ game.forced=false;
+ game.turn=1-p;
+ refill(1-p);
+ checkEnd();
+ render();
+}
+async function humanPlay(){
+ if(busy||game.over||game.turn!==0||game.forced)return;
+ const chosen=game.hands[0].filter(c=>selected.has(key(c)));
+ const check=canPlay(chosen,game.pile,game.hands[0],game.deck.length);
+ if(!check.ok){status(check.reason);return}
+ busy=true;
+ render();
+ const from=[...$('humanHand').children].find(el=>el.title===label(chosen[0]));
+ status(`Pelaat ${chosen.map(label).join(', ')}…`);
+ await animateMove(from,$('pile'),chosen,0);
+ applyMove(0,chosen);
+ selected.clear();
+ busy=false;
+ render();
+ if(!game.over&&game.turn===1)queueAI();
+}
+
+/*
+ * Simulaatiot ajetaan monte-carlo-worker.js-tiedostossa.
+ * Pääsäie lähettää pelitilan, lailliset siirrot ja koemäärän; kokeet jaetaan
+ * tasan kaikille ytimille ja osatulokset (siirtojen pistesummat) yhdistetään tässä.
+ */
+async function bestMove(){
+ const options=movesFor(game.hands[1],game.pile,game.deck.length);
+ // Ehdokkaat: lailliset siirrot + tsäkä (jos pakassa on kortteja ja nosto ei ole pakollinen).
+ // Jos laillisia siirtoja ei ole, vertailuun otetaan mukaan myös pinon nosto.
+ const candidates=options.slice();
+ if(!game.forced&&game.deck.length>0)candidates.push('TSAKA');
+ if(!options.length&&game.pile.length)candidates.push('PICKUP');
+ if(!candidates.length)return null;
+ if(candidates.length===1)return candidates[0];
+
+ const unknown=game.deck.concat(game.hands[0]);
+ const trials=clampTrials();
+
+ const workers=initPool();
+ const count=Math.min(workers.length,trials);
+ const base=Math.floor(trials/count),extra=trials%count;
+ const state={
+  pile:game.pile,
+  aiHand:game.hands[1],
+  humanCount:game.hands[0].length,
+  unknown,
+  options:candidates
+ };
+
+ const parts=await Promise.all(Array.from({length:count},(_,i)=>
+  runJob(workers[i],{...state,trials:base+(i<extra?1:0)})
+ ));
+
+ const totals=candidates.map(()=>0);
+ parts.forEach(p=>p.scores.forEach((s,i)=>{totals[i]+=s}));
+
+ let best=candidates[0],bestScore=-Infinity;
+ for(let i=0;i<candidates.length;i++){
+  const score=totals[i]/trials;
+  if(score>bestScore){bestScore=score;best=candidates[i]}
+ }
+ return best;
+}
+// Botin tsäkä: sama toiminta kuin pelaajan Tsäkä-napilla.
+async function botTry(){
+ const c=game.deck.at(-1);
+ status(`Botti kokeilee nostopakan korttia ${label(c)} (tsäkä)…`);
+ log(`Botti kokeilee tsäkää.`);
+ await animateMove($('deck'),$('pile'),[c],1);
+
+ game.deck.pop();
+ game.hands[1].push(c);
+
+ const check=canPlay([c],game.pile,game.hands[1],game.deck.length);
+ if(check.ok){
+  applyMove(1,[c]);
+ }else{
+  log(`Botin kortti ${label(c)} ei sopinut; botti nostaa pinon.`);
+  if(game.pile.length)game.hands[1].push(...game.pile);
+  game.pile=[];
+  game.forced=false;
+  game.turn=0;
+  refill(1);
+  checkEnd();
+ }
+}
+async function queueAI(){
+ if(!game||game.over||game.turn!==1||busy)return;
+ busy=true;
+ selected.clear();
+ render();
+ status('Botti laskee siirtoa Monte Carlo -simulaatioilla…');
+
+ if(game.forced){
+  status('Botti joutuu nostamaan pinon…');
+  await sleep(1000);
+  pickup(1);
+  busy=false;
+  render();
+  if(!game.over&&game.turn===1)queueAI();
+  return;
+ }
+
+ const move=await bestMove();
+ if(game.over){busy=false;render();return}
+
+ if(move==='TSAKA'){
+  await botTry();
+  busy=false;
+  render();
+  if(!game.over&&game.turn===1)queueAI();
+  return;
+ }
+
+ if(!move||move==='PICKUP'){
+  if(game.pile.length){
+   status('Botilla ei ole sopivaa korttia; se nostaa pinon.');
+   await sleep(1000);
+   pickup(1);
+  }else{
+   // Tyhjään pöytään ei synny pakollista nostoa ilman pelattavaa korttia.
+   status('Botilla ei ole sallittua siirtoa.');
+   game.turn=0;
+  }
+  busy=false;
+  render();
+  if(!game.over&&game.turn===1)queueAI();
+  return;
+ }
+
+ const isBurn=!!burnReason(move,top(),game.pile.concat(move));
+ status(`Botti pelaa ${move.map(label).join(', ')}${isBurn?' ja kaataa pinon':''}…`);
+ await animateMove($('aiHand').firstElementChild,$('pile'),move,1);
+ applyMove(1,move);
+ busy=false;
+ render();
+ if(!game.over&&game.turn===1)queueAI();
+}
+
+$('playBtn').addEventListener('click',humanPlay);
+
+$('pickupBtn').addEventListener('click',async()=>{
+ if(busy||game.turn!==0||game.over)return;
+ busy=true;
+ render();
+ status(game.forced?'Sinun on pakko nostaa pino…':'Nostat pinon…');
+ await sleep(1000);
+ pickup(0);
+ busy=false;
+ render();
+ if(!game.over&&game.turn===1)queueAI();
+});
+
+$('tryBtn').addEventListener('click',async()=>{
+ if(busy||game.turn!==0||game.over||game.forced||!game.deck.length)return;
+ busy=true;
+ render();
+
+ const c=game.deck.at(-1);
+ status(`Kokeilet nostopakan korttia ${label(c)}…`);
+ await animateMove($('deck'),$('pile'),[c],0);
+
+ game.deck.pop();
+ game.hands[0].push(c);
+
+ const check=canPlay([c],game.pile,game.hands[0],game.deck.length);
+ if(check.ok){
+  applyMove(0,[c]);
+ }else{
+  log(`Kortti ${label(c)} ei sopinut; nostat pinon.`);
+  if(game.pile.length)game.hands[0].push(...game.pile);
+  game.pile=[];
+  game.forced=false;
+  game.turn=1;
+  refill(0);
+  checkEnd();
+ }
+
+ selected.clear();
+ busy=false;
+ render();
+ if(!game.over&&game.turn===1)queueAI();
+});
+
+$('clearBtn').addEventListener('click',()=>{
+ if(game.forced)return;
+ selected.clear();
+ render();
+});
+$('sortToggle').addEventListener('click',()=>{
+ autoSort=!autoSort;
+ $('sortToggle').textContent=`Automaattinen järjestely: ${autoSort?'päällä':'pois'}`;
+ $('sortToggle').setAttribute('aria-pressed',String(autoSort));
+ $('sortToggle').classList.toggle('primary',autoSort);
+ if(autoSort){
+  sortCardsAnimated();
+  status('Automaattinen järjestely on päällä. Käsi järjestetään pienimmästä suurimpaan.');
+ }else{
+  render();
+  status('Automaattinen järjestely on pois päältä.');
+ }
+});
+$('newBtn').addEventListener('click',newGame);
+$('againBtn').addEventListener('click',newGame);
+$('trials').addEventListener('change',()=>{
+ $('trials').value=clampTrials();
+ render();
+});
+newGame();
+})();
+</script>
+</body>
+</html>
