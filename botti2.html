@@ -430,7 +430,7 @@ function render(){
 }
 function showEnd(){
  $('overlay').classList.add('show');
- $('dialogTitle').textContent=game.winner===0?'Voitit pelin!':'Hävisit pelin; olet paskahousu.';
+ $('dialogTitle').textContent=game.winner===0?'Et ole paskahousu!':'Hävisit pelin; olet paskahousu.';
  $('dialogText').textContent=game.winner===0
   ?'Sait korttisi loppumaan ensin.'
   :'Botti sai korttinsa loppumaan ensin. Kokeile uudelleen!';
