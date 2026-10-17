@@ -23,7 +23,53 @@ main{max-width:1400px;margin:auto;padding:16px;display:grid;grid-template-column
 .seat{display:flex;align-items:center;justify-content:center;gap:12px;min-height:90px;flex-wrap:wrap}
 .seat-info{min-width:85px;text-align:center;font-weight:750}
 .seat-info small{display:block;font-weight:500;color:#d6e9dc}
-.seat.active .seat-info{color:var(--gold)}
+
+
+
+/* Vuorossa olevan pelaajan nimi hehkuu */
+.seat.active .seat-info {
+  color: var(--gold);
+  text-shadow:
+    0 0 5px #ffe7a0,
+    0 0 12px #ffd54f,
+    0 0 24px #ffb300;
+  animation: nameGlow 1.5s ease-in-out infinite alternate;
+}
+
+/* Vuorossa olevan pelaajan kortit hehkuvat */
+.seat.active .hand .card {
+  box-shadow:
+    0 0 6px #ffe7a0,
+    0 0 14px #ffd54f,
+    0 0 24px #ffb300,
+    0 3px 5px #00170f66;
+  border-color: var(--gold);
+  animation: cardGlow 1.5s ease-in-out infinite alternate;
+}
+
+/* Nimen hehkun sykkiminen */
+@keyframes nameGlow {
+  from {
+    text-shadow: 0 0 4px #ffe7a0, 0 0 8px #ffd54f;
+  }
+  to {
+    text-shadow: 0 0 10px #fff1b8, 0 0 25px #ffb300,
+                 0 0 35px #ff8f00;
+  }
+}
+
+/* Korttien hehkun sykkiminen */
+@keyframes cardGlow {
+  from {
+    box-shadow: 0 0 5px #ffe7a0, 0 0 10px #ffd54f;
+  }
+  to {
+    box-shadow: 0 0 12px #fff1b8, 0 0 24px #ffb300,
+                0 0 32px #ff8f00, 0 3px 5px #00170f66;
+  }
+}
+
+
 .hand{display:flex;justify-content:center;gap:5px;flex-wrap:wrap;align-items:center;min-height:105px}
 .card{width:clamp(43px,5.2vw,68px);height:clamp(65px,7.4vw,96px);border-radius:8px;background:var(--paper);color:var(--ink);border:1px solid #d8d2c5;box-shadow:0 3px 5px #00170f66;position:relative;display:flex;align-items:center;justify-content:center;font-size:clamp(1.1rem,2vw,1.6rem);font-weight:800;flex-shrink:0;user-select:none}
 .card.red{color:var(--red)}
