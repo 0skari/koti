@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoRa-viestipääte</title>
+<style>
+:root{--bg:#f6f7f5;--fg:#1d2320;--mut:#66706a;--card:#fff;--line:#d5dad6;--acc:#0b6b57;--bad:#b3261e;--ok:#1a7f37;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#14181a;--fg:#e4e9e6;--mut:#8f9a94;--card:#1c2224;--line:#2f3a3d;--acc:#4cc2a5;--bad:#ff8a80;--ok:#6fd98a;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px;display:grid;gap:12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 8px}
+button{background:var(--acc);color:var(--bg);border:0;border-radius:4px;padding:7px 12px;font:inherit;cursor:pointer}
+button.sec{background:none;color:var(--fg);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;width:100%}
+textarea{min-height:70px;resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+label{display:grid;gap:2px;font-size:13px;color:var(--mut)}
+label.chk{display:flex;gap:6px;align-items:center}label.chk input{width:auto}
+#log{height:300px;overflow:auto;font:13px/1.4 ui-monospace,monospace}
+.m{padding:4px 0;border-bottom:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.m b{color:var(--acc)}.in b{color:var(--fg)}
+.bad{color:var(--bad)}.ok{color:var(--ok)}.mut{color:var(--mut)}
+#bar{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<header class="row"><h1>LoRa-viestipääte</h1><span id="conn" class="mut">ei yhdistetty</span>
+<button id="bConn">Yhdistä USB-laite</button></header>
+
+<section><div id="bar" class="mut"></div></section>
+
+<section>
+<h2>Salaus ja viesti</h2>
+<div class="grid">
+<label>Avaintapa<select id="kmode"><option value="pass">Salasana → PBKDF2 (200 000 kierrosta)</option><option value="hex">Raaka 256-bittinen avain (64 hex)</option></select></label>
+<label>Jaettu avain<input id="key" type="password" autocomplete="off"></label>
+<label class="chk"><input id="showkey" type="checkbox">Näytä avain tekstinä</label>
+<label class="chk"><input id="enc" type="checkbox" checked>Salaa AES-256-GCM</label>
+<label>GCM-tagin pituus<select id="tag"><option value="16">16 tavua</option><option value="12">12 tavua</option><option value="8">8 tavua (lyhyempi, heikompi)</option></select></label>
+<label>Pakkaus<select id="cmp"><option value="auto">Automaattinen (vain jos pienempi)</option><option value="never">Ei pakkausta</option><option value="always">Aina</option></select></label>
+</div>
+<p class="mut" style="margin:8px 0 4px">Avain pysyy vain selaimen muistissa. Molempien päiden avaimen ja tagin pituuden on oltava samat.</p>
+<textarea id="msg" placeholder="Kirjoita viesti"></textarea>
+<div class="row" style="margin-top:8px"><button id="bSend">Lähetä</button><button id="bCancel" class="sec">Tyhjennä lähetysjono</button><span id="est" class="mut"></span></div>
+</section>
+
+<section><h2>Viestit</h2><div id="log" aria-live="polite"></div></section>
+
+<section><h2>Yhteyden laatu</h2><div id="lq" class="mut">Ei vielä mittauksia.</div></section>
+
+<section>
+<h2>Laitteen asetukset</h2>
+<details open><summary>Näytä ja muokkaa</summary>
+<div class="grid" id="form" style="margin-top:8px"></div>
+<div class="row" style="margin-top:8px"><button id="bApply">Käytä ja tallenna laitteeseen</button><button id="bGet" class="sec">Lue laitteesta</button><button id="bDiag" class="sec">Diagnostiikka</button><button id="bTest" class="sec">Testilähetys</button><span id="cfgmsg" class="mut"></span></div>
+<details style="margin-top:8px"><summary>Aikalähde</summary>
+<label style="margin-top:8px">HTTP-osoite (tyhjä = tämän tietokoneen kello). Palauttaa unix-ms numerona tai JSON {"ms":…}, muuten käytetään Date-otsikkoa.<input id="turl" placeholder="http://…"></label></details>
+</details>
+</section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s), enc=new TextEncoder(), dec=new TextDecoder();
+const hex=u=>[...u].map(b=>b.toString(16).padStart(2,'0')).join('');
+const unhex=h=>Uint8Array.from(h.match(/../g)||[],x=>parseInt(x,16));
+let port,writer,cfg=null,cryptoKey=null,keySig='',stat={},seen=new Set(),sent={},hist=[],msgId=Math.floor(Math.random()*256);
+
+// ---------- asetuslomake: kaikki Picon säädettävät parametrit ----------
+const SCHEMA=[
+['node_id','Laitteen tunnus (1–4)','n'],['slots','Lähetysneljännekset (esim. 2 tai 34)','s'],
+['guard_s','Odotus ikkunan alussa (s)','n'],['end_margin_ms','Loppuvara (ms)','n'],
+['freq_mhz','Taajuus (MHz)','n'],['bw_khz','Kaistanleveys (kHz)','sel',[125,250,500]],
+['sf','Spreading Factor (5–12)','n'],['cr','Coding Rate / FEC (5=4/5 … 8=4/8)','sel',[5,6,7,8]],
+['preamble','Preamble (symbolia)','n'],['crc','LoRa-CRC','b'],['sync_word','Sync word (desimaali, 5156=0x1424)','n'],
+['tx_power_dbm','Lähetysteho (dBm, max 22)','n'],['erp_limit_dbm','ERP-katto (dBm, 27=500 mW)','n'],
+['antenna_gain_dbi','Antennin vahvistus (dBi)','n'],['cable_loss_db','Kaapelihäviö (dB)','n'],
+['dc_enabled','Duty cycle -valvonta','b'],['dc_percent','Duty cycle (%)','n'],['dc_window_s','Duty cycle -ikkuna (s)','n'],
+['airtime_margin_pct','Ilma-ajan varmuuskerroin (%)','n'],
+['ack_enabled','Hash-kuittaus käytössä','b'],['ack_hash_len','Kuittauksen hashin pituus (tavua)','n'],
+['expected_acks','Odotettavat kuittaukset','n'],['ack_timeout_s','Kuittauksen aikaraja (s)','n'],['max_retries','Uudelleenlähetykset (max)','n'],
+['enforce_band','Rajoita taajuus alikaistaan','b'],['band_lo_mhz','Alikaista alaraja (MHz)','n'],['band_hi_mhz','Alikaista yläraja (MHz)','n'],
+['rx_boost','RX boosted gain','b'],['ldro','Low data rate optimize (auto/true/false)','s'],['use_dcdc','DC-DC-regulaattori','b'],
+['tcxo_v','TCXO-jännite (0 = ei)','n'],['max_queue','Jonon max pituus','n'],['status_period_s','Tilapäivitys (s)','n']];
+function buildForm(c){const f=$('#form');f.innerHTML='';
+ for(const [k,l,t,o] of SCHEMA){const w=document.createElement('label');w.textContent=l;let i;
+  if(t==='b'){w.className='chk';i=document.createElement('input');i.type='checkbox';i.checked=!!c[k];w.prepend(i);}
+  else if(t==='sel'){i=document.createElement('select');o.forEach(v=>i.add(new Option(v,v)));i.value=c[k];w.append(i);}
+  else{i=document.createElement('input');i.value=c[k];w.append(i);}
+  i.dataset.k=k;i.dataset.t=t;f.append(w);}}
+function readForm(){const o={};document.querySelectorAll('#form [data-k]').forEach(i=>{const k=i.dataset.k,t=i.dataset.t;
+ o[k]=t==='b'?i.checked:(t==='n'||t==='sel')?parseFloat(i.value):(k==='ldro'&&i.value!=='auto')?i.value==='true':i.value;});return o;}
+
+// ---------- ilma-aika (sama kaava kuin laitteessa) ----------
+function airtime(pl,c=cfg){const sf=c.sf,bw=c.bw_khz*1000,ts=2**sf/bw*1000;
+ const de=(c.ldro==='auto'?ts>=16:c.ldro)?1:0;const num=8*pl-4*sf+28+(c.crc?16:0);
+ const n=8+Math.max(Math.ceil(num/(4*(sf-2*de)))*c.cr,0);return(c.preamble+(sf<7?6.25:4.25)+n)*ts*(1+c.airtime_margin_pct/100);}
+
+// Suurin ilma-aika (ms), joka mahtuu laitteen lähetysikkunaan: pisin yhtenäinen neljännesjakso - alkuviive - loppuvara
+function maxAir(c=cfg){const q=new Set([...String(c.slots)].map(x=>+x-1));if(q.size>=4)return Infinity;let best=0;
+ for(const a of q){if(q.has((a+3)%4))continue;let n=1;while(q.has((a+n)%4))n++;best=Math.max(best,n);}
+ return Math.max(0,best*15000-c.guard_s*1000-c.end_margin_ms);}
+
+// ---------- sarjaportti ----------
+async function send(line){if(!writer)return;await writer.write(enc.encode(line+'\n'));}
+async function connect(){
+ try{port=await navigator.serial.requestPort();await port.open({baudRate:115200});}catch(e){return alert('Yhteys epäonnistui: '+e.message);}
+ writer=port.writable.getWriter();$('#conn').textContent='yhdistetty';
+ const d=new TextDecoderStream();port.readable.pipeTo(d.writable);const r=d.readable.getReader();
+ await syncTime();await send('GET');setInterval(syncTime,20000);
+ let buf='';for(;;){const {value,done}=await r.read();if(done)break;buf+=value;let i;
+  while((i=buf.indexOf('\n'))>=0){const ln=buf.slice(0,i).trim();buf=buf.slice(i+1);if(ln[0]==='{'){try{onEvt(JSON.parse(ln)).catch(e=>log('GUI-virhe: '+esc(e.message),'bad'));}catch(e){}}}}
+ $('#conn').textContent='yhteys katkesi';}
+async function nowMs(){const u=$('#turl').value.trim();if(!u)return Date.now();
+ try{const t0=performance.now();const r=await fetch(u,{cache:'no-store'});const rtt=performance.now()-t0;let tx=await r.text(),ms;
+  try{const j=JSON.parse(tx);ms=typeof j==='number'?j:j.ms;}catch(e){}
+  if(!ms)ms=Date.parse(r.headers.get('Date'));return Math.round(ms+rtt/2);}catch(e){log('Aikalähde ei vastannut, käytetään tietokoneen kelloa','bad');return Date.now();}}
+async function syncTime(){await send('TIME '+await nowMs());}
+
+// ---------- salaus ja pakkaus ----------
+async function getKey(){const v=$('#key').value,m=$('#kmode').value,sig=m+'|'+v;if(sig===keySig&&cryptoKey)return cryptoKey;
+ if(!v)throw Error('Syötä jaettu avain');let raw;
+ if(m==='hex'){if(!/^[0-9a-fA-F]{64}$/.test(v))throw Error('Avaimen on oltava 64 hex-merkkiä');raw=unhex(v);}
+ else{const b=await crypto.subtle.importKey('raw',enc.encode(v),'PBKDF2',false,['deriveBits']);
+  raw=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode('lora-msg-v1'),iterations:200000,hash:'SHA-256'},b,256));}
+ cryptoKey=await crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt']);keySig=sig;return cryptoKey;}
+async function pipe(data,stream){const w=stream.writable.getWriter();w.write(data);w.close();return new Uint8Array(await new Response(stream.readable).arrayBuffer());}
+const deflate=d=>pipe(d,new CompressionStream('deflate-raw')), inflate=d=>pipe(d,new DecompressionStream('deflate-raw'));
+const ivOf=(src,n8)=>{const iv=new Uint8Array(12);iv[0]=src;iv.set(n8,4);return iv;};
+
+// Kehys: [flags][src][msgid] + (salattu: nonce8 + ct+tag | selkoinen: data). flags: bit2=pakattu, bit3=salaamaton
+async function buildFrame(text){
+ let data=enc.encode(text),flags=0;const mode=$('#cmp').value;
+ if(mode!=='never'){const z=await deflate(data);if(mode==='always'||z.length<data.length){data=z;flags|=4;}}
+ const hdr=Uint8Array.of(flags|(!$('#enc').checked?8:0),cfg.node_id,msgId=(msgId+1)&255);let body;
+ if($('#enc').checked){const k=await getKey(),n8=crypto.getRandomValues(new Uint8Array(8));
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:ivOf(cfg.node_id,n8),additionalData:hdr,tagLength:8*+$('#tag').value},k,data));
+  body=new Uint8Array([...n8,...ct]);}else body=data;
+ return {frame:new Uint8Array([...hdr,...body]),compressed:!!(flags&4),id:hdr[2]};}
+async function openFrame(f){const hdr=f.slice(0,3),flags=hdr[0];let data;
+ if(flags&8)data=f.slice(3);
+ else{const k=await getKey();data=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:ivOf(hdr[1],f.slice(3,11)),additionalData:hdr,tagLength:8*+$('#tag').value},k,f.slice(11)));}
+ if(flags&4)data=await inflate(data);return dec.decode(data);}
+
+// ---------- UI ----------
+function log(t,cls='',id){const d=document.createElement('div');d.className='m '+cls;if(id)d.id=id;d.innerHTML=t;const L=$('#log');L.append(d);L.scrollTop=L.scrollHeight;return d;}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function setSt(id,t,cls=''){const e=sent[id];if(e){e.querySelector('.st').className='st '+cls;e.querySelector('.st').textContent=t;}}
+function bar(){const s=stat;$('#bar').textContent=!cfg?'':`Laite #${cfg.node_id} · neljännes ${s.quarter??'?'}/4 ${s.in_window?'(lähetysikkuna)':'(kuuntelu)'} · aika ${s.synced?'synkattu':'EI ASETETTU'} · duty ${s.dc_used_ms??0}/${s.dc_budget_ms??0} ms · jono ${s.q??0} · TX ${s.cnt?.tx??0} / RX ${s.cnt?.rx??0} / CRC-virheet ${s.cnt?.crc??0} · ERP ${s.erp_dbm??'?'} dBm (teho ${s.eff_power??'?'} dBm)`;}
+function estimate(){if(!cfg)return;const n=new Blob([$('#msg').value]).size+(($('#enc').checked)?3+8+ +$('#tag').value:3);
+ const a=airtime(n),m=maxAir(),over=a>m;
+ $('#est').className=over?'bad':'mut';
+ $('#est').textContent=`≈${n} tavua, lähetysaika ≈${Math.round(a)} ms (ennen pakkausta)`+(m===Infinity?'':`, ikkunaan mahtuu max ${Math.round(m)} ms tai 254 tavua pakkauksen jälkeen. Tavujen ylittyessä tulee virhe "4..255".`)+(over?' – liian pitkä, lyhennä viestiä':'');}
+
+async function onEvt(e){
+ if(e.t==='cfg'){cfg=e.cfg;buildForm(cfg);bar();estimate();}
+ else if(e.t==='stat'){stat=e;bar();if(e.cnt&&e.cnt.own_id&&!window._w){window._w=1;log('Varoitus: vastaanotettiin kehys, jolla on SAMA laitetunnus kuin tällä laitteella. Anna laitteille eri node_id.','bad');}}
+ else if(e.t==='diag'){log('Diagnostiikka: '+esc(JSON.stringify(e)),'mut');}
+ else if(e.t==='tx'&&e.kind==='test'){log('Testikehys lähetetty, ok='+e.ok,'mut');}
+ else if(e.t==='ok'&&e.cmd==='SET'){$('#cfgmsg').textContent='Tallennettu.';send('GET');}
+ else if(e.t==='err'){$('#cfgmsg').textContent=e.msg;log('Laite: '+esc(e.msg),'bad');}
+ else if(e.t==='queued'){setSt(e.id,`jonossa (${e.len} B, lähetysaika ${e.air_ms} ms)`);}
+ else if(e.t==='tx'&&e.kind==='data'){setSt(e.id,`lähetetty (yritys ${e.try}, ${e.air_ms} ms), odotetaan kuittausta`);}
+ else if(e.t==='ack'){hist.push({snr:e.snr,err:!e.ok});setSt(e.id,e.ok?`kuitattu: hash täsmää (laite ${e.from}, SNR ${e.snr} dB)`:'HASH EI TÄSMÄÄ – viesti ei saapunut ehjänä, lähetetään uudelleen',e.ok?'ok':'bad');lq();}
+ else if(e.t==='done'){setSt(e.id,`perillä (${e.tries}. yrityksellä)`,'ok');}
+ else if(e.t==='retry'){hist.push({err:true});setSt(e.id,`uudelleenlähetys (${e.why})`,'bad');lq();}
+ else if(e.t==='fail'){setSt(e.id,`epäonnistui (${e.why}) – uudelleenyritykset käytetty`,'bad');}
+ else if(e.t==='crcerr'){hist.push({err:true});lq();}
+ else if(e.t==='rx'){hist.push({snr:e.snr,err:false});lq();const f=unhex(e.hex),key=f[1]+':'+f[2]+':'+hex(f.slice(3,11));
+  const dup=seen.has(key);seen.add(key);if(dup)return;
+  try{log(`<b>Laite ${f[1]}:</b> ${esc(await openFrame(f))} <span class="mut">(RSSI ${e.rssi} dBm, SNR ${e.snr} dB)</span>`,'in');}
+  catch(err){hist.push({err:true});log(`Laite ${f[1]}: purku epäonnistui (${esc(err.message||'väärä avain tai viesti vioittunut')}). Vioittunut kehys → varmista salasanojen yhdenmukaisuus.`,'bad');}}
+}
+
+// ---------- yhteyden laadun seuranta ----------
+const SNRLIM={5:-2.5,6:-5,7:-7.5,8:-10,9:-12.5,10:-15,11:-17.5,12:-20};
+function lq(){if(!cfg)return;const h=hist.slice(-12);if(h.length<3){$('#lq').textContent='Kerätään mittauksia…';return;}
+ const sn=h.filter(x=>x.snr!==undefined).map(x=>x.snr),avg=sn.length?sn.reduce((a,b)=>a+b)/sn.length:null,errs=h.filter(x=>x.err).length;
+ const margin=avg===null?null:avg-SNRLIM[cfg.sf];let s=`Viimeiset ${h.length} tapahtumaa: virheitä ${errs}, keskimääräinen SNR ${avg===null?'–':avg.toFixed(1)} dB, marginaali SF${cfg.sf}:n rajaan ${margin===null?'–':margin.toFixed(1)} dB.<br>`,sug=null;
+ if(errs>=2||(margin!==null&&margin<3)){sug=cfg.cr<8?{cr:cfg.cr+1}:cfg.sf<12?{sf:cfg.sf+1}:null;
+  s+=sug?`<b>Ehdotus:</b> yhteys heikko → ${sug.cr?`kasvata CR arvoon 4/${sug.cr}`:`kasvata SF arvoon ${sug.sf}`}.`:'Yhteys on rajalla jo SF12/CR4/8: kokeile pienempää kaistaa (125 kHz, ~3 dB herkempi), parempaa antennia tai korkeampaa paikkaa.';}
+ else if(errs===0&&h.length>=6&&margin!==null&&margin>=12&&cfg.sf>7){sug={sf:cfg.sf-1};s+=`<b>Ehdotus:</b> yhteys erinomainen → pienennä SF arvoon ${sug.sf} (lyhyempi lähetysaika).`;}
+ else if(errs===0&&h.length>=6&&margin!==null&&margin>=6&&cfg.cr>5){sug={cr:cfg.cr-1};s+=`<b>Ehdotus:</b> yhteys hyvä → pienennä CR arvoon 4/${sug.cr}.`;}
+ else s+='Ei muutosehdotusta.';
+ $('#lq').innerHTML=s;if(sug){const b=document.createElement('button');b.className='sec';b.style.marginLeft='8px';b.textContent='Ota käyttöön tässä laitteessa';
+  b.onclick=()=>{send('SET '+JSON.stringify(sug));hist.length=0;};$('#lq').append(b);
+  $('#lq').append(' Muuta sama arvo myös toisiin päätteisiin, muuten ne eivät kuule toisiaan.');}}
+
+// ---------- tapahtumat ----------
+$('#bConn').onclick=connect;
+$('#showkey').onchange=e=>{$('#key').type=e.target.checked?'text':'password';};
+$('#bGet').onclick=()=>send('GET');
+$('#bDiag').onclick=()=>send('DIAG');
+$('#bTest').onclick=()=>send('TESTTX');
+$('#bApply').onclick=()=>{$('#cfgmsg').textContent='';send('SET '+JSON.stringify(readForm()));};
+$('#bCancel').onclick=()=>send('CANCEL');
+$('#msg').oninput=estimate;
+$('#bSend').onclick=async()=>{
+ if(!cfg)return alert('Yhdistä laite ensin.');const text=$('#msg').value;if(!text)return;
+ try{const r=await buildFrame(text);
+  const air=airtime(r.frame.length),mx=maxAir();
+  if(air>mx){log(`Viestiä ei lähetetty: lähetysaika ≈${Math.round(air)} ms (${r.frame.length} B) ylittää lähetysikkunaan mahtuvan ${Math.round(mx)} ms (slotit ${esc(String(cfg.slots))}, alkuviive ${cfg.guard_s} s, loppuvara ${cfg.end_margin_ms} ms). Lyhennä viestiä, pienennä SF:ää tai kasvata kaistanleveyttä tai lähetysikkunaa.`,'bad');return;}
+  const el=log(`<b>Minä:</b> ${esc(text)} <span class="mut">[${r.frame.length} B${r.compressed?', pakattu':''}, läehtysaika ≈${Math.round(airtime(r.frame.length))} ms]</span> — <span class="st mut">lähetetään laitteelle</span>`,'',null);
+  sent[r.id]=el;await send('TX '+hex(r.frame));$('#msg').value='';estimate();}
+ catch(e){log('Virhe: '+esc(e.message),'bad');}};
+if(!('serial' in navigator))$('#conn').textContent='Selain ei tue Web Serialia – käytä Chromea tai Edgeä';
+</script>
+</body>
+</html>
