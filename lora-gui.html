@@ -59,7 +59,7 @@ label.chk{display:flex;gap:6px;align-items:center}label.chk input{width:auto}
 <div class="grid" id="form" style="margin-top:8px"></div>
 <div class="row" style="margin-top:8px"><button id="bApply">Käytä ja tallenna laitteeseen</button><button id="bGet" class="sec">Lue laitteesta</button><button id="bDiag" class="sec">Diagnostiikka</button><button id="bTest" class="sec">Testilähetys</button><span id="cfgmsg" class="mut"></span></div>
 <details style="margin-top:8px"><summary>Aikalähde</summary>
-<label style="margin-top:8px">HTTP-osoite (tyhjä = tämän tietokoneen kello). Palauttaa unix-ms numerona tai JSON {"ms":…}, muuten käytetään Date-otsikkoa.<input id="turl" placeholder="http://…"></label></details>
+<label style="margin-top:8px">HTTP-osoite (tyhjä = tämän tietokoneen kello). Kirjoita <b>time.foo</b> käyttääksesi time.foo-sivuston APIa. Muut osoitteet: palauttaa unix-ms numerona tai JSON {"ms":…}, muuten käytetään Date-otsikkoa.<input id="turl" placeholder="time.foo tai http://…"></label></details>
 </details>
 </section>
 </main>
@@ -115,9 +115,15 @@ async function connect(){
  let buf='';for(;;){const {value,done}=await r.read();if(done)break;buf+=value;let i;
   while((i=buf.indexOf('\n'))>=0){const ln=buf.slice(0,i).trim();buf=buf.slice(i+1);if(ln[0]==='{'){try{onEvt(JSON.parse(ln)).catch(e=>log('GUI-virhe: '+esc(e.message),'bad'));}catch(e){}}}}
  $('#conn').textContent='yhteys katkesi';}
-async function nowMs(){const u=$('#turl').value.trim();if(!u)return Date.now();
+async function nowMs(){let u=$('#turl').value.trim();if(!u)return Date.now();
+ const tf=/^(https?:\/\/)?(www\.)?time\.foo\/?$/i.test(u);if(tf)u='https://time.foo/api/v1/now?format=unix_ms';
  try{const t0=performance.now();const r=await fetch(u,{cache:'no-store'});const rtt=performance.now()-t0;let tx=await r.text(),ms;
-  try{const j=JSON.parse(tx);ms=typeof j==='number'?j:j.ms;}catch(e){}
+  try{const j=JSON.parse(tx);
+   if(typeof j==='number')ms=j;
+   else if(j&&typeof j==='object'){for(const k of ['ms','unix_ms','value','time','now','result','timestamp']){const v=j[k];
+    if(v!=null){ms=typeof v==='number'?v:/^\d+$/.test(String(v))?+v:Date.parse(v);break;}}}
+  }catch(e){if(/^\d+$/.test(tx.trim()))ms=+tx.trim();}
+  if(tf&&ms&&ms<1e11)ms*=1000;
   if(!ms)ms=Date.parse(r.headers.get('Date'));return Math.round(ms+rtt/2);}catch(e){log('Aikalähde ei vastannut, käytetään tietokoneen kelloa','bad');return Date.now();}}
 async function syncTime(){await send('TIME '+await nowMs());}
 
