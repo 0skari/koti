@@ -68,7 +68,7 @@ label.chk{display:flex;gap:6px;align-items:center}label.chk input{width:auto}
 const $=s=>document.querySelector(s), enc=new TextEncoder(), dec=new TextDecoder();
 const hex=u=>[...u].map(b=>b.toString(16).padStart(2,'0')).join('');
 const unhex=h=>Uint8Array.from(h.match(/../g)||[],x=>parseInt(x,16));
-let port,writer,cfg=null,cryptoKey=null,keySig='',stat={},seen=new Set(),sent={},hist=[],msgId=Math.floor(Math.random()*256);
+let port,writer,tsrc=null,cfg=null,cryptoKey=null,keySig='',stat={},seen=new Set(),sent={},hist=[],msgId=Math.floor(Math.random()*256);
 
 // ---------- asetuslomake: kaikki Picon säädettävät parametrit ----------
 const SCHEMA=[
@@ -115,7 +115,8 @@ async function connect(){
  let buf='';for(;;){const {value,done}=await r.read();if(done)break;buf+=value;let i;
   while((i=buf.indexOf('\n'))>=0){const ln=buf.slice(0,i).trim();buf=buf.slice(i+1);if(ln[0]==='{'){try{onEvt(JSON.parse(ln)).catch(e=>log('GUI-virhe: '+esc(e.message),'bad'));}catch(e){}}}}
  $('#conn').textContent='yhteys katkesi';}
-async function nowMs(){let u=$('#turl').value.trim();if(!u)return Date.now();
+const fmtT=ms=>{const d=new Date(ms),p=n=>String(n).padStart(2,'0');return d.getDate()+'.'+(d.getMonth()+1)+'.'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());};
+async function nowMs(){let u=$('#turl').value.trim();tsrc=null;if(!u)return Date.now();
  const tf=/^(https?:\/\/)?(www\.)?time\.foo\/?$/i.test(u);if(tf)u='https://time.foo/api/v1/now?format=unix_ms';
  try{const t0=performance.now();const r=await fetch(u,{cache:'no-store'});const rtt=performance.now()-t0;let tx=await r.text(),ms;
   try{const j=JSON.parse(tx);
@@ -124,8 +125,8 @@ async function nowMs(){let u=$('#turl').value.trim();if(!u)return Date.now();
     if(v!=null){ms=typeof v==='number'?v:/^\d+$/.test(String(v))?+v:Date.parse(v);break;}}}
   }catch(e){if(/^\d+$/.test(tx.trim()))ms=+tx.trim();}
   if(tf&&ms&&ms<1e11)ms*=1000;
-  if(!ms)ms=Date.parse(r.headers.get('Date'));return Math.round(ms+rtt/2);}catch(e){log('Aikalähde ei vastannut, käytetään tietokoneen kelloa','bad');return Date.now();}}
-async function syncTime(){await send('TIME '+await nowMs());}
+  if(!ms)ms=Date.parse(r.headers.get('Date'));const res=Math.round(ms+rtt/2);if(!isFinite(res))throw Error('aikaa ei saatu');tsrc={host:new URL(r.url||u).hostname,t:fmtT(res)};return res;}catch(e){tsrc=null;log('Aikalähde ei vastannut, käytetään tietokoneen kelloa','bad');return Date.now();}}
+async function syncTime(){await send('TIME '+await nowMs());bar();}
 
 // ---------- salaus ja pakkaus ----------
 async function getKey(){const v=$('#key').value,m=$('#kmode').value,sig=m+'|'+v;if(sig===keySig&&cryptoKey)return cryptoKey;
@@ -156,7 +157,7 @@ async function openFrame(f){const hdr=f.slice(0,3),flags=hdr[0];let data;
 function log(t,cls='',id){const d=document.createElement('div');d.className='m '+cls;if(id)d.id=id;d.innerHTML=t;const L=$('#log');L.append(d);L.scrollTop=L.scrollHeight;return d;}
 const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function setSt(id,t,cls=''){const e=sent[id];if(e){e.querySelector('.st').className='st '+cls;e.querySelector('.st').textContent=t;}}
-function bar(){const s=stat;$('#bar').textContent=!cfg?'':`Laite #${cfg.node_id} · neljännes ${s.quarter??'?'}/4 ${s.in_window?'(lähetysikkuna)':'(kuuntelu)'} · aika ${s.synced?'synkattu':'EI ASETETTU'} · duty ${s.dc_used_ms??0}/${s.dc_budget_ms??0} ms · jono ${s.q??0} · TX ${s.cnt?.tx??0} / RX ${s.cnt?.rx??0} / CRC-virheet ${s.cnt?.crc??0} · ERP ${s.erp_dbm??'?'} dBm (teho ${s.eff_power??'?'} dBm)`;}
+function bar(){const s=stat;const src=tsrc?` (<b class="ok">${esc(tsrc.host)} · ${esc(tsrc.t)}</b>)`:'';$('#bar').innerHTML=!cfg?'':esc(`Laite #${cfg.node_id} · neljännes ${s.quarter??'?'}/4 ${s.in_window?'(lähetysikkuna)':'(kuuntelu)'} · aika ${s.synced?'synkattu':'EI ASETETTU'}\u0001 · duty ${s.dc_used_ms??0}/${s.dc_budget_ms??0} ms · jono ${s.q??0} · TX ${s.cnt?.tx??0} / RX ${s.cnt?.rx??0} / CRC-virheet ${s.cnt?.crc??0} · ERP ${s.erp_dbm??'?'} dBm (teho ${s.eff_power??'?'} dBm)`).replace('\u0001',s.synced?src:'');}
 function estimate(){if(!cfg)return;const n=new Blob([$('#msg').value]).size+(($('#enc').checked)?3+8+ +$('#tag').value:3);
  const a=airtime(n),m=maxAir(),over=a>m;
  $('#est').className=over?'bad':'mut';
